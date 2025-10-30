@@ -10,3 +10,8 @@ interface ControlProps {
     onSkipForward: () => void;
     onSkipBackward: () => void;
 }
+
+interface ExportPanelProps {
+    audioBuffer: AudioBuffer | null;
+    fileName: string;
+}
