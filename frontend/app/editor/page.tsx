@@ -149,9 +149,9 @@ const EditorPage = () => {
                         <FileUpload onFileSelect={handleFileSelect} />
 
                         <div className="flex items-center gap-4">
-                            <div className="h-px flex-1 bg-border" />
+                            <div className="h-px flex-1 bg-border" aria-hidden="true" />
                             <span className="text-xs text-text-dim">or record audio</span>
-                            <div className="h-px flex-1 bg-border" />
+                            <div className="h-px flex-1 bg-border" aria-hidden="true" />
                         </div>
 
                         <div className="flex flex-col items-center gap-4">

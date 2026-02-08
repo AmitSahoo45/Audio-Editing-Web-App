@@ -39,7 +39,7 @@ export function Slider({ value, onValueChange, min = 0, max = 100, step = 1, lab
                 </SliderPrimitive.Track>
                 <SliderPrimitive.Thumb className="relative block h-3 w-3 rounded-full border border-accent bg-foreground shadow-[0_0_4px_rgba(59,130,246,0.3)] transition-transform hover:scale-125 focus:outline-none focus:ring-1 focus:ring-accent/50">
                     {showTooltip && (
-                        <span className="absolute -top-7 left-1/2 -translate-x-1/2 rounded bg-surface-raised border border-border px-1.5 py-0.5 text-[10px] tabular-nums text-foreground whitespace-nowrap">
+                        <span role="tooltip" aria-live="polite" className="absolute -top-7 left-1/2 -translate-x-1/2 rounded bg-surface-raised border border-border px-1.5 py-0.5 text-[10px] tabular-nums text-foreground whitespace-nowrap">
                             {value[0]}
                         </span>
                     )}
