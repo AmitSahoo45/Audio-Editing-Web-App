@@ -125,34 +125,33 @@ const EditorPage = () => {
     }, []);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black p-4 md:p-8">
-            <div className="mx-auto max-w-7xl">
-                {/* Header */}
-                <div className="mb-8 flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                        <Link href="/">
-                            <Button variant="ghost" size="icon">
-                                <ArrowLeft className="h-5 w-5" />
-                            </Button>
-                        </Link>
-                        <div>
-                            <h1 className="text-2xl font-bold text-white">Audio Editor</h1>
-                            <p className="text-sm text-slate-400">
-                                {audioFile ? fileName : 'Upload or record audio to get started'}
-                            </p>
-                        </div>
-                    </div>
+        <div className="flex h-screen flex-col overflow-hidden bg-background">
+            {/* Slim Toolbar Header */}
+            <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
+                <div className="flex items-center gap-3">
+                    <Link href="/">
+                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                            <ArrowLeft className="h-4 w-4" />
+                        </Button>
+                    </Link>
+                    <div className="h-4 w-px bg-border" />
+                    <h1 className="text-sm font-semibold text-foreground">Audio Editor</h1>
+                    <span className="text-xs text-text-dim">
+                        {audioFile ? fileName : 'No file loaded'}
+                    </span>
                 </div>
+            </header>
 
-                {!audioUrl ? (
-                    /* Upload / Record Section */
-                    <div className="space-y-6">
+            {!audioUrl ? (
+                /* Upload / Record Section - centered on screen */
+                <div className="flex flex-1 items-center justify-center p-8">
+                    <div className="w-full max-w-lg space-y-6">
                         <FileUpload onFileSelect={handleFileSelect} />
 
                         <div className="flex items-center gap-4">
-                            <div className="h-px flex-1 bg-slate-700" />
-                            <span className="text-sm text-slate-500">or record audio</span>
-                            <div className="h-px flex-1 bg-slate-700" />
+                            <div className="h-px flex-1 bg-border" />
+                            <span className="text-xs text-text-dim">or record audio</span>
+                            <div className="h-px flex-1 bg-border" />
                         </div>
 
                         <div className="flex flex-col items-center gap-4">
@@ -163,12 +162,12 @@ const EditorPage = () => {
                             >
                                 {isRecording ? (
                                     <>
-                                        <MicOff className="mr-2 h-5 w-5" />
+                                        <MicOff className="mr-2 h-4 w-4" />
                                         Stop Recording
                                     </>
                                 ) : (
                                     <>
-                                        <Mic className="mr-2 h-5 w-5" />
+                                        <Mic className="mr-2 h-4 w-4" />
                                         Start Recording
                                     </>
                                 )}
@@ -181,68 +180,72 @@ const EditorPage = () => {
                             )}
                         </div>
                     </div>
-                ) : (
-                    /* Editor Section */
-                    <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-                        {/* Main Editor Area */}
-                        <div className="space-y-6">
-                            <AudioPlayer audioUrl={audioUrl} />
+                </div>
+            ) : (
+                /* Editor Section - Desktop App Layout */
+                <div className="flex flex-1 overflow-hidden">
+                    {/* Main Workspace */}
+                    <div className="flex flex-1 flex-col overflow-y-auto p-4 gap-4">
+                        {/* Waveform Canvas Area */}
+                        <AudioPlayer audioUrl={audioUrl} />
 
-                            {/* Processing Tools */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Processing</CardTitle>
-                                </CardHeader>
-                                <div className="flex flex-wrap gap-3">
-                                    <Button
-                                        onClick={handleTrim}
-                                        disabled={isProcessing || !audioBuffer}
-                                        variant="secondary"
-                                    >
-                                        <Scissors className="mr-2 h-4 w-4" />
-                                        Trim Edges
-                                    </Button>
-                                    <Button
-                                        onClick={handleNormalize}
-                                        disabled={isProcessing || !audioBuffer}
-                                        variant="secondary"
-                                    >
-                                        <Volume2 className="mr-2 h-4 w-4" />
-                                        Normalize
-                                    </Button>
-                                    <Button
-                                        onClick={() => {
-                                            setAudioUrl(null);
-                                            setAudioBuffer(null);
-                                            setAudioFile(null);
-                                            audioEffectsRef.current?.dispose();
-                                            audioEffectsRef.current = null;
-                                        }}
-                                        variant="ghost"
-                                    >
-                                        Load New File
-                                    </Button>
-                                </div>
-                            </Card>
-                        </div>
-
-                        {/* Sidebar */}
-                        <div className="space-y-6">
-                            <EffectsPanel
-                                audioUrl={audioUrl}
-                                onVolumeChange={handleVolumeChange}
-                                onReverbChange={handleReverbChange}
-                                onEQChange={handleEQChange}
-                            />
-
-                            <ExportPanel
-                                audioBuffer={audioBuffer}
-                                fileName={fileName}
-                            />
-                        </div>
+                        {/* Processing Tools */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Processing</CardTitle>
+                            </CardHeader>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    onClick={handleTrim}
+                                    disabled={isProcessing || !audioBuffer}
+                                    variant="secondary"
+                                    size="sm"
+                                >
+                                    <Scissors className="mr-1.5 h-3.5 w-3.5" />
+                                    Trim Edges
+                                </Button>
+                                <Button
+                                    onClick={handleNormalize}
+                                    disabled={isProcessing || !audioBuffer}
+                                    variant="secondary"
+                                    size="sm"
+                                >
+                                    <Volume2 className="mr-1.5 h-3.5 w-3.5" />
+                                    Normalize
+                                </Button>
+                                <Button
+                                    onClick={() => {
+                                        setAudioUrl(null);
+                                        setAudioBuffer(null);
+                                        setAudioFile(null);
+                                        audioEffectsRef.current?.dispose();
+                                        audioEffectsRef.current = null;
+                                    }}
+                                    variant="ghost"
+                                    size="sm"
+                                >
+                                    Load New File
+                                </Button>
+                            </div>
+                        </Card>
                     </div>
-                )}
-            </div>
+
+                    {/* Fixed Sidebar */}
+                    <aside className="w-80 shrink-0 overflow-y-auto border-l border-border bg-surface p-4 space-y-4">
+                        <EffectsPanel
+                            audioUrl={audioUrl}
+                            onVolumeChange={handleVolumeChange}
+                            onReverbChange={handleReverbChange}
+                            onEQChange={handleEQChange}
+                        />
+
+                        <ExportPanel
+                            audioBuffer={audioBuffer}
+                            fileName={fileName}
+                        />
+                    </aside>
+                </div>
+            )}
         </div>
     );
 };

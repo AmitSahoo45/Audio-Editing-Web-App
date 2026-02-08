@@ -19,9 +19,9 @@ const WaveForm: React.FC<WaveFormProps> = ({ audioUrl, onReady }: WaveFormProps)
 
         const waveSurfer = WaveSurfer.create({
             container: containerRef.current,
-            waveColor: '#4F4A85',
-            progressColor: '#383351',
-            cursorColor: '#FFFFFF',
+            waveColor: '#3B82F6',
+            progressColor: '#1D4ED8',
+            cursorColor: '#60A5FA',
             barWidth: 2,
             barGap: 1,
             height: 128,
@@ -43,8 +43,10 @@ const WaveForm: React.FC<WaveFormProps> = ({ audioUrl, onReady }: WaveFormProps)
     }, [audioUrl, onReady]);
 
     return (
-        <div className="w-full rounded-xl bg-slate-800/50 p-4">
-            <div ref={containerRef} />
+        <div className="w-full rounded-lg border border-border bg-surface p-[1px] shadow-[0_0_20px_rgba(59,130,246,0.06)]">
+            <div className="rounded-[7px] bg-background/80 p-4">
+                <div ref={containerRef} />
+            </div>
         </div>
     );
 };
