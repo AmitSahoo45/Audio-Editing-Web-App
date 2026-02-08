@@ -5,6 +5,7 @@ import FileUpload from '@/components/audio-editor/FileUpload';
 import AudioPlayer from '@/components/audio-editor/AudioPlayer';
 import EffectsPanel from '@/components/audio-editor/EffectsPanel';
 import { ExportPanel } from '@/components/audio-editor/ExportPanel';
+import NoiseReductionPanel from '@/components/audio-editor/NoiseReductionPanel';
 import { useAudioContext } from '@/hooks/useAudioContext';
 import { AudioProcessor } from '@/lib/audio-processor';
 import { AudioEffects } from '@/lib/audio-effects';
@@ -124,6 +125,17 @@ const EditorPage = () => {
         audioEffectsRef.current?.setEQ(low, mid, high);
     }, []);
 
+    const handleNoiseReductionProcessed = useCallback(async (processed: AudioBuffer, url: string) => {
+        setAudioBuffer(processed);
+        setAudioUrl(url);
+
+        // Re-initialize effects with the new URL
+        audioEffectsRef.current?.dispose();
+        const effects = new AudioEffects();
+        await effects.initialize(url);
+        audioEffectsRef.current = effects;
+    }, []);
+
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-background">
             {/* Slim Toolbar Header */}
@@ -237,6 +249,12 @@ const EditorPage = () => {
                             onVolumeChange={handleVolumeChange}
                             onReverbChange={handleReverbChange}
                             onEQChange={handleEQChange}
+                        />
+
+                        <NoiseReductionPanel
+                            audioBuffer={audioBuffer}
+                            audioContext={audioContext}
+                            onProcessed={handleNoiseReductionProcessed}
                         />
 
                         <ExportPanel
