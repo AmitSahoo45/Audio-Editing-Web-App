@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/Button";
+import Link from "next/link";
 
 const features = [
   {
@@ -34,9 +35,11 @@ export default function Home() {
             collaborate with your team, and publish mixes that sparkle—all in minutes, no downloads required.
           </p>
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-            <Button size="lg" className="w-full sm:w-auto">
-              Start editing free
-            </Button>
+            <Link href="/editor">
+              <Button size="lg" className="w-full sm:w-auto">
+                Start editing free
+              </Button>
+            </Link>
             <Button variant="outline" size="lg" className="w-full sm:w-auto">
               Watch demo
             </Button>

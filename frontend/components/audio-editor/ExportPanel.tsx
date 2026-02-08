@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { AudioEncoder } from '@/lib/audio-encoder';
+import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { ExportPanelProps } from '@/types';
 
 export function ExportPanel({ audioBuffer, fileName }: ExportPanelProps) {
     const [isExporting, setIsExporting] = useState(false);
@@ -30,53 +32,52 @@ export function ExportPanel({ audioBuffer, fileName }: ExportPanelProps) {
     }
 
     return (
-        <div>
-            <h3>Export Audio</h3>
+        <Card>
+            <CardHeader>
+                <CardTitle>Export Audio</CardTitle>
+            </CardHeader>
 
-            <section>
-                <label className="text-sm text-slate-300">Format</label>
-
+            <div className="space-y-4">
                 <div>
-                    <button
-                        type="button"
-                        onClick={() => setFormat('mp3')}
-                        aria-pressed={format === 'mp3'}
-                        className={`
-                        px-4 py-2 rounded-lg font-medium transition-colors
-                        ${format === 'mp3'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}
-                            `}
-                    >
-                        MP3
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={() => setFormat('wav')}
-                        aria-pressed={format === 'wav'}
-                        className={`
-                        px-4 py-2 rounded-lg font-medium transition-colors
-                        ${format === 'wav'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}
-                        `}
-                    >
-                        WAV
-                    </button>
+                    <label className="text-sm text-slate-300">Format</label>
+                    <div className="mt-2 flex gap-2">
+                        <button
+                            type="button"
+                            onClick={() => setFormat('mp3')}
+                            aria-pressed={format === 'mp3'}
+                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                format === 'mp3'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            }`}
+                        >
+                            MP3
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setFormat('wav')}
+                            aria-pressed={format === 'wav'}
+                            className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                                format === 'wav'
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                            }`}
+                        >
+                            WAV
+                        </button>
+                    </div>
                 </div>
 
-            </section>
-
-            <Button 
-                onClick={handleExport}
-                disabled={!audioBuffer || isExporting}
-                className="w-full"
-                type="button"
-            >
-                <Download className="mr-2 h-4 w-4" />
-                {isExporting ? 'Exporting...' : `Export as ${format.toUpperCase()}`}
-            </Button>
-        </div>
+                <Button
+                    onClick={handleExport}
+                    disabled={!audioBuffer || isExporting}
+                    className="w-full"
+                    type="button"
+                >
+                    <Download className="mr-2 h-4 w-4" />
+                    {isExporting ? 'Exporting...' : `Export as ${format.toUpperCase()}`}
+                </Button>
+            </div>
+        </Card>
     )
 }
