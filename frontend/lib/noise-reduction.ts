@@ -112,6 +112,8 @@ export class NoiseReduction {
         // sensitivity maps to a multiplier on the local RMS threshold
         const thresholdMultiplier = 2 + (1 - opts.clickSensitivity) * 8;
         const windowSize = 64;
+        // Samples on each side used for interpolation when repairing a click
+        const INTERPOLATION_RADIUS = 4;
 
         for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
             const src = buffer.getChannelData(ch);
@@ -130,9 +132,8 @@ export class NoiseReduction {
                 // If sample exceeds threshold, it's likely a click
                 if (Math.abs(src[i]) > threshold && threshold > 0.001) {
                     // Linear interpolation from surrounding clean samples
-                    const halfRepair = 4;
-                    const before = src[Math.max(0, i - halfRepair)];
-                    const after = src[Math.min(src.length - 1, i + halfRepair)];
+                    const before = src[Math.max(0, i - INTERPOLATION_RADIUS)];
+                    const after = src[Math.min(src.length - 1, i + INTERPOLATION_RADIUS)];
                     dst[i] = (before + after) / 2;
                 }
             }
@@ -200,13 +201,14 @@ export class NoiseReduction {
 
             let gateOpen = false;
             let envelope = 0;
-            const rmsWindow = 256;
+            // Window size (in samples) for computing local RMS energy level
+            const RMS_WINDOW = 256;
 
             for (let i = 0; i < src.length; i++) {
                 // Compute local RMS level
                 let sum = 0;
-                const start = Math.max(0, i - rmsWindow);
-                const end = Math.min(src.length, i + rmsWindow);
+                const start = Math.max(0, i - RMS_WINDOW);
+                const end = Math.min(src.length, i + RMS_WINDOW);
                 for (let j = start; j < end; j++) {
                     sum += src[j] * src[j];
                 }
