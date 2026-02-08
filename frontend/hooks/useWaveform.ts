@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import WaveSurfer from 'wavesurfer.js'
-import RegionsPlugin, { Region } from 'wavesurfer.js/dist/plugins/regions'
+import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions'
 
 interface UseWaveformOptions {
     onReady?: () => void;
@@ -15,6 +15,10 @@ interface UseWaveformProps {
     options?: UseWaveformOptions;
 }
 
+const MIN_PX_PER_SEC = 50;
+const MAX_PX_PER_SEC = 1000;
+const DEFAULT_PX_PER_SEC = 100;
+
 export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProps) => {
     const waveSurferRef = useRef<WaveSurfer | null>(null);
     const regionsPluginRef = useRef<RegionsPlugin | null>(null);
@@ -24,6 +28,7 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
 
     const [duration, setDuration] = useState<number>(0);
     const [currentTime, setCurrentTime] = useState<number>(0);
+    const [zoom, setZoom] = useState<number>(DEFAULT_PX_PER_SEC);
 
     useEffect(() => {
         if (!containerRef.current || !audioUrl)
@@ -41,6 +46,9 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
             barGap: 1,
             height: 128,
             normalize: true,
+            minPxPerSec: DEFAULT_PX_PER_SEC,
+            autoScroll: true,
+            autoCenter: true,
             plugins: [regions]
         });
         waveSurferRef.current = wavesurfer;
@@ -98,17 +106,45 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
     };
     const clearRegions = () => regionsPluginRef.current?.clearRegions();
 
+    const zoomIn = useCallback(() => {
+        setZoom(prev => {
+            const next = Math.min(prev + 50, MAX_PX_PER_SEC);
+            waveSurferRef.current?.zoom(next);
+            return next;
+        });
+    }, []);
+
+    const zoomOut = useCallback(() => {
+        setZoom(prev => {
+            const next = Math.max(prev - 50, MIN_PX_PER_SEC);
+            waveSurferRef.current?.zoom(next);
+            return next;
+        });
+    }, []);
+
+    const zoomTo = useCallback((value: number) => {
+        const clamped = Math.max(MIN_PX_PER_SEC, Math.min(MAX_PX_PER_SEC, value));
+        setZoom(clamped);
+        waveSurferRef.current?.zoom(clamped);
+    }, []);
+
     return {
         wavesurfer: waveSurferRef.current,
         isReady,
         isPlaying,
         duration,
         currentTime,
+        zoom,
+        minZoom: MIN_PX_PER_SEC,
+        maxZoom: MAX_PX_PER_SEC,
         play,
         pause,
         stop,
         seekTo,
         addRegion,
         clearRegions,
+        zoomIn,
+        zoomOut,
+        zoomTo,
     };
 }

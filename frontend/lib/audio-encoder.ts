@@ -2,21 +2,38 @@ import lamejs from 'lamejs';
 import { saveAs } from 'file-saver';
 import { AudioProcessor } from './audio-processor';
 
+export interface ExportOptions {
+    /** MP3 bitrate in kbps (default 128) */
+    bitrate?: number;
+    /** Target sample rate in Hz (default: source sample rate) */
+    sampleRate?: number;
+}
+
 export class AudioEncoder {
-    static async exportToMP3(audioBuffer: AudioBuffer, fileName: string = 'audio.mp3'): Promise<void> {
+    static async exportToMP3(
+        audioBuffer: AudioBuffer,
+        fileName: string = 'audio.mp3',
+        options: ExportOptions = {}
+    ): Promise<void> {
+        const bitrate = options.bitrate ?? 128;
+        const targetSR = options.sampleRate ?? audioBuffer.sampleRate;
+        const resampled = targetSR !== audioBuffer.sampleRate
+            ? await this.resample(audioBuffer, targetSR)
+            : audioBuffer;
+
         const mp3encoder = new lamejs.Mp3Encoder(
-            audioBuffer.numberOfChannels,
-            audioBuffer.sampleRate,
-            128
+            resampled.numberOfChannels,
+            resampled.sampleRate,
+            bitrate
         )
 
         const mp3Data: Int8Array[] = [];
         const sampleBlockSize = 1152;
 
-        if (audioBuffer.numberOfChannels === 1) {
+        if (resampled.numberOfChannels === 1) {
             // Mono
             const samples = this.convertFloat32ToInt16(
-                audioBuffer.getChannelData(0)
+                resampled.getChannelData(0)
             );
 
             for (let i = 0; i < samples.length; i += sampleBlockSize) {
@@ -28,8 +45,8 @@ export class AudioEncoder {
             }
         } else {
             // Stereo
-            const left = this.convertFloat32ToInt16(audioBuffer.getChannelData(0));
-            const right = this.convertFloat32ToInt16(audioBuffer.getChannelData(1));
+            const left = this.convertFloat32ToInt16(resampled.getChannelData(0));
+            const right = this.convertFloat32ToInt16(resampled.getChannelData(1));
 
             for (let i = 0; i < left.length; i += sampleBlockSize) {
                 const leftChunk = left.subarray(i, i + sampleBlockSize);
@@ -54,11 +71,36 @@ export class AudioEncoder {
 
     static async exportToWAV(
         audioBuffer: AudioBuffer,
-        fileName: string = 'audio.wav'
+        fileName: string = 'audio.wav',
+        options: ExportOptions = {}
     ): Promise<void> {
+        const targetSR = options.sampleRate ?? audioBuffer.sampleRate;
+        const resampled = targetSR !== audioBuffer.sampleRate
+            ? await this.resample(audioBuffer, targetSR)
+            : audioBuffer;
+
         const processor = new AudioProcessor(new AudioContext());
-        const blob = await processor.audioBufferToWav(audioBuffer);
+        const blob = await processor.audioBufferToWav(resampled);
         saveAs(blob, fileName);
+    }
+
+    /** Resample an AudioBuffer to a different sample rate using OfflineAudioContext. */
+    private static async resample(buffer: AudioBuffer, targetSR: number): Promise<AudioBuffer> {
+        const ratio = targetSR / buffer.sampleRate;
+        const newLength = Math.round(buffer.length * ratio);
+
+        const offline = new OfflineAudioContext(
+            buffer.numberOfChannels,
+            newLength,
+            targetSR
+        );
+
+        const source = offline.createBufferSource();
+        source.buffer = buffer;
+        source.connect(offline.destination);
+        source.start(0);
+
+        return offline.startRendering();
     }
 
     private static convertFloat32ToInt16(buffer: Float32Array): Int16Array {
