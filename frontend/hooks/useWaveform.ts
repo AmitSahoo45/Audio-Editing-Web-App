@@ -10,7 +10,7 @@ interface UseWaveformOptions {
 }
 
 interface UseWaveformProps {
-    containerRef: React.RefObject<HTMLDivElement>;
+    containerRef: React.RefObject<HTMLDivElement | null>;
     audioUrl: string | null;
     options?: UseWaveformOptions;
 }

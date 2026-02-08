@@ -1,8 +1,8 @@
-interface FileUploadProps {
+export interface FileUploadProps {
     onFileSelect: (file: File) => void;
 }
 
-interface ControlProps {
+export interface ControlProps {
     isPlaying: boolean;
     onPlay: () => void;
     onPause: () => void;
@@ -11,7 +11,7 @@ interface ControlProps {
     onSkipBackward: () => void;
 }
 
-interface ExportPanelProps {
+export interface ExportPanelProps {
     audioBuffer: AudioBuffer | null;
     fileName: string;
 }

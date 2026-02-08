@@ -3,6 +3,7 @@
 import { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload } from 'lucide-react';
+import { FileUploadProps } from '@/types';
 
 const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
     const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -17,16 +18,23 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileSelect }) => {
     });
 
     return (
-        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+        <div
+            {...getRootProps()}
+            className={`border-2 border-dashed rounded-lg p-10 text-center cursor-pointer transition-colors ${
+                isDragActive
+                    ? 'border-blue-500 bg-blue-500/10'
+                    : 'border-slate-600 hover:border-slate-400'
+            }`}
+        >
             <input {...getInputProps()} />
             <Upload className='mx-auto h-12 w-12 text-slate-400 mb-4' />
-            <p>
+            <p className="text-slate-300">
                 {isDragActive
                     ? "Drop the audio file here..."
                     : "Drag and drop an audio file here, or click to select a file."}
             </p>
-            <p>
-                or click to browse (MP3, WAV, OGG, AAC, M4A)
+            <p className="text-sm text-slate-500 mt-2">
+                Supported formats: MP3, WAV, OGG, AAC, M4A
             </p>
         </div>
     );

@@ -2,10 +2,11 @@
 
 import { Play, Pause, Square, SkipForward, SkipBack } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { ControlProps } from '@/types'
 
 const Controls = ({ isPlaying, onPlay, onPause, onStop, onSkipForward, onSkipBackward }: ControlProps) => {
     return (
-        <div>
+        <div className="flex items-center justify-center gap-2">
             <Button
                 variant='ghost'
                 size='icon'
@@ -55,3 +56,5 @@ const Controls = ({ isPlaying, onPlay, onPause, onStop, onSkipForward, onSkipBac
         </div>
     );
 };
+
+export default Controls;

@@ -43,8 +43,8 @@ const WaveForm: React.FC<WaveFormProps> = ({ audioUrl, onReady }: WaveFormProps)
     }, [audioUrl, onReady]);
 
     return (
-        <div>
-            <div />
+        <div className="w-full rounded-xl bg-slate-800/50 p-4">
+            <div ref={containerRef} />
         </div>
     );
 };
