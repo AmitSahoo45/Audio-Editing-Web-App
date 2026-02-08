@@ -13,8 +13,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        <main className="min-h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-black text-white">
+      <body className="antialiased bg-background text-foreground">
+        <main className="relative z-10">
           {children}
         </main>
       </body>
