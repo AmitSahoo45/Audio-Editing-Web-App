@@ -23,7 +23,7 @@ export default function Timeline({ currentTime, duration, onSeek }: TimelineProp
                     style={{ width: `${progress}%` }}
                 />
                 <div
-                    className="absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full bg-white shadow-md transition-all"
+                    className="absolute top-1/2 h-3.5 w-3.5 rounded-full bg-white shadow-md transition-all"
                     style={{ left: `${progress}%`, transform: `translateX(-50%) translateY(-50%)` }}
                 />
             </div>
