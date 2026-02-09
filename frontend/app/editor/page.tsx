@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import FileUpload from '@/components/audio-editor/FileUpload';
 import AudioPlayer from '@/components/audio-editor/AudioPlayer';
 import EffectsPanel from '@/components/audio-editor/EffectsPanel';
@@ -9,6 +9,7 @@ import NoiseReductionPanel from '@/components/audio-editor/NoiseReductionPanel';
 import { useAudioContext } from '@/hooks/useAudioContext';
 import { AudioProcessor } from '@/lib/audio-processor';
 import { AudioEffects } from '@/lib/audio-effects';
+import { useAudioStore } from '@/store/audio-store';
 import { Button } from '@/components/ui/Button';
 import { Mic, MicOff, Scissors, Volume2, ArrowLeft } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -19,11 +20,19 @@ const EditorPage = () => {
     const audioContext = useAudioContext();
     const { isRecording, recordedBlob, startRecording, stopRecording, clearRecording } = useAudioRecorder();
 
-    const [audioFile, setAudioFile] = useState<File | null>(null);
-    const [audioUrl, setAudioUrl] = useState<string | null>(null);
-    const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
-    const [fileName, setFileName] = useState<string>('audio');
-    const [isProcessing, setIsProcessing] = useState(false);
+    const {
+        audioFile,
+        audioUrl,
+        audioBuffer,
+        fileName,
+        isProcessing,
+        setAudioFile,
+        setAudioUrl,
+        setAudioBuffer,
+        setFileName,
+        setIsProcessing,
+        resetEditor,
+    } = useAudioStore();
 
     const audioEffectsRef = useRef<AudioEffects | null>(null);
 
@@ -43,7 +52,7 @@ const EditorPage = () => {
             await effects.initialize(url);
             audioEffectsRef.current = effects;
         }
-    }, [audioContext]);
+    }, [audioContext, setAudioFile, setFileName, setAudioUrl, setAudioBuffer]);
 
     const handleRecordingToggle = useCallback(async () => {
         if (isRecording) {
@@ -69,7 +78,7 @@ const EditorPage = () => {
             await effects.initialize(url);
             audioEffectsRef.current = effects;
         }
-    }, [recordedBlob, audioContext]);
+    }, [recordedBlob, audioContext, setAudioUrl, setFileName, setAudioBuffer]);
 
     const handleNormalize = useCallback(async () => {
         if (!audioBuffer || !audioContext) return;
@@ -87,7 +96,7 @@ const EditorPage = () => {
         } finally {
             setIsProcessing(false);
         }
-    }, [audioBuffer, audioContext]);
+    }, [audioBuffer, audioContext, setIsProcessing, setAudioBuffer, setAudioUrl]);
 
     const handleTrim = useCallback(async () => {
         if (!audioBuffer || !audioContext) return;
@@ -111,7 +120,7 @@ const EditorPage = () => {
         } finally {
             setIsProcessing(false);
         }
-    }, [audioBuffer, audioContext]);
+    }, [audioBuffer, audioContext, setIsProcessing, setAudioBuffer, setAudioUrl]);
 
     const handleVolumeChange = useCallback((volume: number) => {
         audioEffectsRef.current?.setVolume(volume);
@@ -134,7 +143,7 @@ const EditorPage = () => {
         const effects = new AudioEffects();
         await effects.initialize(url);
         audioEffectsRef.current = effects;
-    }, []);
+    }, [setAudioBuffer, setAudioUrl]);
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -227,11 +236,9 @@ const EditorPage = () => {
                                 </Button>
                                 <Button
                                     onClick={() => {
-                                        setAudioUrl(null);
-                                        setAudioBuffer(null);
-                                        setAudioFile(null);
                                         audioEffectsRef.current?.dispose();
                                         audioEffectsRef.current = null;
+                                        resetEditor();
                                     }}
                                     variant="ghost"
                                     size="sm"

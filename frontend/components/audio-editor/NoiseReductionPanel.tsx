@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { useAudioStore } from '@/store/audio-store';
 import type { NoiseReductionMode } from '@/lib/noise-reduction';
 
 interface NoiseReductionPanelProps {
@@ -20,7 +20,7 @@ const MODES: { id: NoiseReductionMode; label: string; description: string }[] = 
 ];
 
 export default function NoiseReductionPanel({ audioBuffer, onProcessed, audioContext }: NoiseReductionPanelProps) {
-    const [processing, setProcessing] = useState<NoiseReductionMode | null>(null);
+    const { noiseReductionProcessing: processing, setNoiseReductionProcessing: setProcessing } = useAudioStore();
 
     const handleProcess = async (mode: NoiseReductionMode) => {
         if (!audioBuffer || !audioContext) return;

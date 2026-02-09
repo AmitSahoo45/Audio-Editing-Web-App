@@ -1,16 +1,15 @@
 'use client';
 
-import { useState } from 'react';
 import { Slider } from '@/components/ui/Slider';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { useAudioStore } from '@/store/audio-store';
 import { EffectsPanelProps } from '@/types/audio';
 
 export default function EffectsPanel({ onVolumeChange, onReverbChange, onEQChange }: EffectsPanelProps) {
-    const [volume, setVolume] = useState(100);
-    const [reverb, setReverb] = useState(0);
-    const [eqLow, setEqLow] = useState(0);
-    const [eqMid, setEqMid] = useState(0);
-    const [eqHigh, setEqHigh] = useState(0);
+    const {
+        volume, reverb, eqLow, eqMid, eqHigh,
+        setVolume, setReverb, setEqLow, setEqMid, setEqHigh,
+    } = useAudioStore();
 
     const handleVolumeChange = (value: number[]) => {
         setVolume(value[0]);

@@ -1,20 +1,20 @@
 'use client';
 
-import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { AudioEncoder } from '@/lib/audio-encoder';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
+import { useAudioStore } from '@/store/audio-store';
 import { ExportPanelProps } from '@/types';
 
 const BITRATE_OPTIONS = [64, 128, 192, 256, 320];
 const SAMPLE_RATE_OPTIONS = [22050, 44100, 48000];
 
 export function ExportPanel({ audioBuffer, fileName }: ExportPanelProps) {
-    const [isExporting, setIsExporting] = useState(false);
-    const [format, setFormat] = useState<'mp3' | 'wav'>('mp3');
-    const [bitrate, setBitrate] = useState(128);
-    const [sampleRate, setSampleRate] = useState(44100);
+    const {
+        isExporting, exportFormat: format, exportBitrate: bitrate, exportSampleRate: sampleRate,
+        setIsExporting, setExportFormat: setFormat, setExportBitrate: setBitrate, setExportSampleRate: setSampleRate,
+    } = useAudioStore();
 
     const handleExport = async () => {
         if (!audioBuffer)

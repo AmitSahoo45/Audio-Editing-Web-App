@@ -1,6 +1,17 @@
 /**
- * Client-side noise reduction using Web Audio API DSP.
- * Provides: hum removal, click repair, de-essing, and room-tone / noise-gate.
+ * Client-side noise reduction using standard Web Audio API DSP techniques.
+ *
+ * This module does **not** use AI or Machine Learning. Each mode applies
+ * well-known digital signal processing algorithms:
+ *
+ * - **Hum removal** – Cascaded biquad notch filters at the mains frequency
+ *   (50 / 60 Hz) and its harmonics.
+ * - **Click repair** – Local-RMS thresholding to detect transient clicks,
+ *   replaced by linear interpolation of neighbouring samples.
+ * - **De-essing** – High-shelf + low-pass biquad filters to attenuate harsh
+ *   sibilant frequencies.
+ * - **Room-tone / noise gate** – RMS-based noise gate with configurable
+ *   attack / release envelope that silences content below a threshold.
  */
 
 export type NoiseReductionMode = 'hum' | 'click' | 'deess' | 'room';
