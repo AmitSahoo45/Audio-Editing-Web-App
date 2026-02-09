@@ -1,16 +1,12 @@
 'use client';
 
-import { useState } from 'react';
 import { Slider } from '@/components/ui/Slider';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { EffectsPanelProps } from '@/types/audio';
+import { useAudioStore } from '@/store/audio-store';
 
 export default function EffectsPanel({ onVolumeChange, onReverbChange, onEQChange }: EffectsPanelProps) {
-    const [volume, setVolume] = useState(100);
-    const [reverb, setReverb] = useState(0);
-    const [eqLow, setEqLow] = useState(0);
-    const [eqMid, setEqMid] = useState(0);
-    const [eqHigh, setEqHigh] = useState(0);
+    const { volume, reverb, eqLow, eqMid, eqHigh, setVolume, setReverb, setEQ } = useAudioStore();
 
     const handleVolumeChange = (value: number[]) => {
         setVolume(value[0]);
@@ -23,17 +19,17 @@ export default function EffectsPanel({ onVolumeChange, onReverbChange, onEQChang
     };
 
     const handleEQLowChange = (value: number[]) => {
-        setEqLow(value[0]);
+        setEQ(value[0], eqMid, eqHigh);
         onEQChange(value[0], eqMid, eqHigh);
     };
 
     const handleEQMidChange = (value: number[]) => {
-        setEqMid(value[0]);
+        setEQ(eqLow, value[0], eqHigh);
         onEQChange(eqLow, value[0], eqHigh);
     };
 
     const handleEQHighChange = (value: number[]) => {
-        setEqHigh(value[0]);
+        setEQ(eqLow, eqMid, value[0]);
         onEQChange(eqLow, eqMid, value[0]);
     };
 
