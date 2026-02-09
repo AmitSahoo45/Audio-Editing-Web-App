@@ -134,11 +134,11 @@ function BentoGrid() {
         {/* Card 2 — Tall */}
         <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md transition-transform duration-300 hover:scale-[1.02] md:row-span-2">
           <Sparkles className="mb-4 h-8 w-8 text-purple-400" />
-          <h3 className="text-lg font-semibold text-white">AI Noise Removal</h3>
+          <h3 className="text-lg font-semibold text-white">DSP Noise Reduction</h3>
           <p className="mt-2 text-sm leading-relaxed text-white/50">
-            One click to silence hum, hiss, and room noise. Our ML models
-            preserve voice clarity while eliminating distractions—no manual EQ
-            required.
+            One click to silence hum, hiss, and room noise. Built-in DSP
+            filters preserve voice clarity while eliminating distractions—no
+            manual EQ required.
           </p>
           <div className="mt-6 space-y-3">
             {["Hum removal", "Click repair", "De-essing", "Room tone"].map(
