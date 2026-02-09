@@ -115,5 +115,5 @@ export const useAudioStore = create<AudioState & AudioActions>((set) => ({
     setExportSampleRate: (sr) => set({ exportSampleRate: sr }),
 
     /* Reset */
-    resetEditor: () => set(initialState),
+    resetEditor: () => set({ ...initialState }),
 }));
