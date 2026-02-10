@@ -128,6 +128,26 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
         waveSurferRef.current?.zoom(clamped);
     }, []);
 
+    // Mouse-wheel zoom (Ctrl + scroll)
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const handleWheel = (e: WheelEvent) => {
+            if (!e.ctrlKey && !e.metaKey) return;
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -50 : 50;
+            setZoom(prev => {
+                const next = Math.max(MIN_PX_PER_SEC, Math.min(MAX_PX_PER_SEC, prev + delta));
+                waveSurferRef.current?.zoom(next);
+                return next;
+            });
+        };
+
+        container.addEventListener('wheel', handleWheel, { passive: false });
+        return () => container.removeEventListener('wheel', handleWheel);
+    }, [containerRef]);
+
     return {
         wavesurfer: waveSurferRef.current,
         isReady,

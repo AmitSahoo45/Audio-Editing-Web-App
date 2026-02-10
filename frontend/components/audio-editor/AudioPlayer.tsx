@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, MutableRefObject } from 'react';
 import { useWaveform } from '@/hooks/useWaveform';
 import Controls from './Controls';
 import Timeline from './Timeline';
@@ -10,14 +10,19 @@ import { Button } from '@/components/ui/Button';
 interface AudioPlayerProps {
     audioUrl: string;
     onReady?: () => void;
+    onPlaybackChange?: (isPlaying: boolean) => void;
+    playerRef?: MutableRefObject<{ play: () => void; pause: () => void } | null>;
 }
 
-export default function AudioPlayer({ audioUrl, onReady }: AudioPlayerProps) {
+export default function AudioPlayer({ audioUrl, onReady, onPlaybackChange, playerRef }: AudioPlayerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
 
     const options = useMemo(() => ({
         onReady,
-    }), [onReady]);
+        onPlay: () => onPlaybackChange?.(true),
+        onPause: () => onPlaybackChange?.(false),
+        onFinish: () => onPlaybackChange?.(false),
+    }), [onReady, onPlaybackChange]);
 
     const {
         isPlaying,
@@ -34,6 +39,13 @@ export default function AudioPlayer({ audioUrl, onReady }: AudioPlayerProps) {
         zoomOut,
         zoomTo,
     } = useWaveform({ containerRef, audioUrl, options });
+
+    // Expose play/pause to parent for keyboard shortcuts
+    useEffect(() => {
+        if (playerRef) {
+            playerRef.current = { play, pause };
+        }
+    }, [play, pause, playerRef]);
 
     const handleSkipForward = () => {
         const newTime = Math.min(currentTime + 5, duration);

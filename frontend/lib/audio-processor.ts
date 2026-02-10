@@ -6,8 +6,24 @@ export class AudioProcessor {
     }
 
     async loadAudioFile(file: File): Promise<AudioBuffer> {
-        const arrayBuffer = await file.arrayBuffer();
-        return await this.audioContext.decodeAudioData(arrayBuffer);
+        if (!file || file.size === 0) {
+            throw new Error('The selected file is empty or invalid.');
+        }
+
+        let arrayBuffer: ArrayBuffer;
+        try {
+            arrayBuffer = await file.arrayBuffer();
+        } catch {
+            throw new Error('Failed to read the audio file. It may be corrupted.');
+        }
+
+        try {
+            return await this.audioContext.decodeAudioData(arrayBuffer);
+        } catch {
+            throw new Error(
+                `Unable to decode "${file.name}". The file may be corrupted or in an unsupported format.`
+            );
+        }
     }
 
     trimAudio(
