@@ -16,7 +16,7 @@ interface KeyboardShortcutsOptions {
  *  Space          – Play / Pause
  *  Delete         – Remove selected region
  *  Ctrl+X         – Trim (cut) selected region
- *  Ctrl+N         – Normalize
+ *  Ctrl+Shift+L   – Normalize
  *  Ctrl+Z         – Undo
  *  Ctrl+Shift+Z   – Redo
  */
@@ -59,8 +59,8 @@ export function useKeyboardShortcuts(opts: KeyboardShortcutsOptions) {
                 return;
             }
 
-            // Normalize (Ctrl+Shift+N)
-            if (ctrl && e.shiftKey && e.key === 'N') {
+            // Normalize (Ctrl+Shift+L)
+            if (ctrl && e.shiftKey && e.key === 'L') {
                 e.preventDefault();
                 opts.onNormalize?.();
                 return;

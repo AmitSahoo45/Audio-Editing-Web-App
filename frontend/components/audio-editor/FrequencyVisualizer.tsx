@@ -82,6 +82,9 @@ export default function FrequencyVisualizer({ audioUrl }: FrequencyVisualizerPro
         audio.play().then(() => {
             setIsActive(true);
             draw();
+        }).catch(() => {
+            // Browser blocked autoplay – clean up silently
+            cleanup();
         });
 
         audio.addEventListener('ended', () => {

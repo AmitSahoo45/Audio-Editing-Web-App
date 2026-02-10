@@ -8,19 +8,20 @@
  */
 
 export type WorkerRequest =
-    | { type: 'trim'; channels: Float32Array[]; sampleRate: number; startTime: number; endTime: number }
-    | { type: 'normalize'; channels: Float32Array[]; sampleRate: number }
-    | { type: 'toWav'; channels: Float32Array[]; sampleRate: number };
+    | { type: 'trim'; id: number; channels: Float32Array[]; sampleRate: number; startTime: number; endTime: number }
+    | { type: 'normalize'; id: number; channels: Float32Array[]; sampleRate: number }
+    | { type: 'toWav'; id: number; channels: Float32Array[]; sampleRate: number };
 
 export type WorkerResponse =
-    | { type: 'result'; channels: Float32Array[]; sampleRate: number }
-    | { type: 'wavResult'; blob: Blob }
-    | { type: 'error'; message: string };
+    | { type: 'result'; id: number; channels: Float32Array[]; sampleRate: number }
+    | { type: 'wavResult'; id: number; blob: Blob }
+    | { type: 'error'; id: number; message: string };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ctx = self as any;
 
 ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
+    const id = e.data.id;
     try {
         const msg = e.data;
 
@@ -40,7 +41,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
                 });
 
                 ctx.postMessage(
-                    { type: 'result', channels: trimmed, sampleRate } as WorkerResponse,
+                    { type: 'result', id, channels: trimmed, sampleRate } as WorkerResponse,
                     trimmed.map(c => c.buffer) as unknown as Transferable[]
                 );
                 break;
@@ -63,7 +64,7 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
                 });
 
                 ctx.postMessage(
-                    { type: 'result', channels: normalized, sampleRate } as WorkerResponse,
+                    { type: 'result', id, channels: normalized, sampleRate } as WorkerResponse,
                     normalized.map(c => c.buffer) as unknown as Transferable[]
                 );
                 break;
@@ -111,12 +112,12 @@ ctx.onmessage = (e: MessageEvent<WorkerRequest>) => {
                 }
 
                 const blob = new Blob([buffer], { type: 'audio/wav' });
-                ctx.postMessage({ type: 'wavResult', blob } as WorkerResponse);
+                ctx.postMessage({ type: 'wavResult', id, blob } as WorkerResponse);
                 break;
             }
         }
     } catch (err) {
-        ctx.postMessage({ type: 'error', message: (err as Error).message } as WorkerResponse);
+        ctx.postMessage({ type: 'error', id, message: (err as Error).message } as WorkerResponse);
     }
 };
 

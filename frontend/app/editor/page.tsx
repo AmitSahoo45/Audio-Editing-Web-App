@@ -94,7 +94,7 @@ const EditorPage = () => {
                 await effects.initialize(url);
                 audioEffectsRef.current = effects;
             } catch {
-                toast.error('Failed to decode recorded audio.');
+                toast.error('Failed to decode recorded audio. The recording may be corrupted or in an unsupported format.');
             }
         }
     }, [recordedBlob, audioContext, setAudioUrl, setFileName, setAudioBuffer]);

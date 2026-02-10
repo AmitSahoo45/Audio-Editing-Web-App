@@ -1,5 +1,10 @@
 import { useRef, useCallback } from 'react';
-import type { WorkerRequest, WorkerResponse } from '@/workers/audio-worker';
+import type { WorkerResponse } from '@/workers/audio-worker';
+
+type WorkerMessage =
+    | { type: 'trim'; channels: Float32Array[]; sampleRate: number; startTime: number; endTime: number }
+    | { type: 'normalize'; channels: Float32Array[]; sampleRate: number }
+    | { type: 'toWav'; channels: Float32Array[]; sampleRate: number };
 
 /**
  * Helper: extract raw Float32Array channels from an AudioBuffer.
@@ -33,6 +38,7 @@ function channelsToBuffer(
  */
 export function useAudioWorker() {
     const workerRef = useRef<Worker | null>(null);
+    const nextIdRef = useRef(0);
 
     const getWorker = useCallback(() => {
         if (!workerRef.current) {
@@ -44,10 +50,12 @@ export function useAudioWorker() {
     }, []);
 
     const postMessage = useCallback(
-        (msg: WorkerRequest): Promise<WorkerResponse> =>
+        (msg: WorkerMessage): Promise<WorkerResponse> =>
             new Promise((resolve, reject) => {
                 const worker = getWorker();
+                const id = nextIdRef.current++;
                 const handler = (e: MessageEvent<WorkerResponse>) => {
+                    if (e.data.id !== id) return;
                     worker.removeEventListener('message', handler);
                     if (e.data.type === 'error') {
                         reject(new Error(e.data.message));
@@ -56,7 +64,7 @@ export function useAudioWorker() {
                     }
                 };
                 worker.addEventListener('message', handler);
-                worker.postMessage(msg);
+                worker.postMessage({ ...msg, id });
             }),
         [getWorker]
     );

@@ -133,7 +133,7 @@ export class AudioEffects {
             case 'delay':
                 return new Tone.FeedbackDelay('8n', 0.3);
             case 'chorus':
-                return new Tone.Chorus(4, 2.5, 0.5).start();
+                return new Tone.Chorus(4, 2.5, 0.5);
             default:
                 return new Tone.Gain(1);
         }
@@ -154,6 +154,13 @@ export class AudioEffects {
 
         for (let i = 0; i < chain.length - 1; i++) {
             chain[i].connect(chain[i + 1] as Tone.InputNode);
+        }
+
+        // Chorus requires an explicit .start() call after connection
+        for (const entry of this.effectRack) {
+            if (entry.enabled && entry.node instanceof Tone.Chorus) {
+                entry.node.start();
+            }
         }
     }
 }
