@@ -10,15 +10,20 @@ import { useAudioContext } from '@/hooks/useAudioContext';
 import { AudioProcessor } from '@/lib/audio-processor';
 import { AudioEffects } from '@/lib/audio-effects';
 import { useAudioStore } from '@/store/audio-store';
+import { useAudioWorker } from '@/hooks/useAudioWorker';
+import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Button } from '@/components/ui/Button';
-import { Mic, MicOff, Scissors, Volume2, ArrowLeft } from 'lucide-react';
+import { Mic, MicOff, Scissors, Volume2, ArrowLeft, Undo2, Redo2 } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
+import { Toaster, toast } from 'sonner';
+import FrequencyVisualizer from '@/components/audio-editor/FrequencyVisualizer';
 import Link from 'next/link';
 
 const EditorPage = () => {
     const audioContext = useAudioContext();
     const { isRecording, recordedBlob, startRecording, stopRecording, clearRecording } = useAudioRecorder();
+    const { trimAudio, normalizeAudio, audioBufferToWav } = useAudioWorker();
 
     const {
         audioFile,
@@ -26,15 +31,20 @@ const EditorPage = () => {
         audioBuffer,
         fileName,
         isProcessing,
+        isPlaying,
         setAudioFile,
         setAudioUrl,
         setAudioBuffer,
         setFileName,
         setIsProcessing,
+        setIsPlaying,
         resetEditor,
     } = useAudioStore();
 
+    const { undo, redo } = useAudioStore.temporal.getState();
+
     const audioEffectsRef = useRef<AudioEffects | null>(null);
+    const playerRef = useRef<{ play: () => void; pause: () => void } | null>(null);
 
     const handleFileSelect = useCallback(async (file: File) => {
         setAudioFile(file);
@@ -44,15 +54,20 @@ const EditorPage = () => {
         setAudioUrl(url);
 
         if (audioContext) {
-            const processor = new AudioProcessor(audioContext);
-            const buffer = await processor.loadAudioFile(file);
-            setAudioBuffer(buffer);
+            try {
+                const processor = new AudioProcessor(audioContext);
+                const buffer = await processor.loadAudioFile(file);
+                setAudioBuffer(buffer);
 
-            const effects = new AudioEffects();
-            await effects.initialize(url);
-            audioEffectsRef.current = effects;
+                const effects = new AudioEffects();
+                await effects.initialize(url);
+                audioEffectsRef.current = effects;
+            } catch (error) {
+                toast.error((error as Error).message || 'Failed to load audio file.');
+                resetEditor();
+            }
         }
-    }, [audioContext, setAudioFile, setFileName, setAudioUrl, setAudioBuffer]);
+    }, [audioContext, setAudioFile, setFileName, setAudioUrl, setAudioBuffer, resetEditor]);
 
     const handleRecordingToggle = useCallback(async () => {
         if (isRecording) {
@@ -70,13 +85,17 @@ const EditorPage = () => {
             setAudioUrl(url);
             setFileName('recording.webm');
 
-            const arrayBuffer = await recordedBlob.arrayBuffer();
-            const buffer = await audioContext.decodeAudioData(arrayBuffer);
-            setAudioBuffer(buffer);
+            try {
+                const arrayBuffer = await recordedBlob.arrayBuffer();
+                const buffer = await audioContext.decodeAudioData(arrayBuffer);
+                setAudioBuffer(buffer);
 
-            const effects = new AudioEffects();
-            await effects.initialize(url);
-            audioEffectsRef.current = effects;
+                const effects = new AudioEffects();
+                await effects.initialize(url);
+                audioEffectsRef.current = effects;
+            } catch {
+                toast.error('Failed to decode recorded audio. The recording may be corrupted or in an unsupported format.');
+            }
         }
     }, [recordedBlob, audioContext, setAudioUrl, setFileName, setAudioBuffer]);
 
@@ -84,43 +103,46 @@ const EditorPage = () => {
         if (!audioBuffer || !audioContext) return;
         setIsProcessing(true);
         try {
-            const processor = new AudioProcessor(audioContext);
-            const normalized = processor.normalizeAudio(audioBuffer);
+            const normalized = await normalizeAudio(audioBuffer, audioContext);
             setAudioBuffer(normalized);
 
-            const blob = await processor.audioBufferToWav(normalized);
+            const blob = await audioBufferToWav(normalized);
             const url = URL.createObjectURL(blob);
             setAudioUrl(url);
+            toast.success('Audio normalized.');
         } catch (error) {
             console.error('Normalization failed:', error);
+            toast.error('Normalization failed.');
         } finally {
             setIsProcessing(false);
         }
-    }, [audioBuffer, audioContext, setIsProcessing, setAudioBuffer, setAudioUrl]);
+    }, [audioBuffer, audioContext, setIsProcessing, setAudioBuffer, setAudioUrl, normalizeAudio, audioBufferToWav]);
 
     const handleTrim = useCallback(async () => {
         if (!audioBuffer || !audioContext) return;
         setIsProcessing(true);
         try {
-            const processor = new AudioProcessor(audioContext);
             const duration = audioBuffer.duration;
             // Trim 10% from start and end as a default trim
-            const trimmed = processor.trimAudio(
+            const trimmed = await trimAudio(
                 audioBuffer,
                 duration * 0.1,
-                duration * 0.9
+                duration * 0.9,
+                audioContext
             );
             setAudioBuffer(trimmed);
 
-            const blob = await processor.audioBufferToWav(trimmed);
+            const blob = await audioBufferToWav(trimmed);
             const url = URL.createObjectURL(blob);
             setAudioUrl(url);
+            toast.success('Audio trimmed.');
         } catch (error) {
             console.error('Trim failed:', error);
+            toast.error('Trim failed.');
         } finally {
             setIsProcessing(false);
         }
-    }, [audioBuffer, audioContext, setIsProcessing, setAudioBuffer, setAudioUrl]);
+    }, [audioBuffer, audioContext, setIsProcessing, setAudioBuffer, setAudioUrl, trimAudio, audioBufferToWav]);
 
     const handleVolumeChange = useCallback((volume: number) => {
         audioEffectsRef.current?.setVolume(volume);
@@ -143,10 +165,30 @@ const EditorPage = () => {
         const effects = new AudioEffects();
         await effects.initialize(url);
         audioEffectsRef.current = effects;
+        toast.success('Noise reduction applied.');
     }, [setAudioBuffer, setAudioUrl]);
+
+    const handlePlayPause = useCallback(() => {
+        if (isPlaying) {
+            playerRef.current?.pause();
+        } else {
+            playerRef.current?.play();
+        }
+    }, [isPlaying]);
+
+    // Keyboard shortcuts
+    useKeyboardShortcuts({
+        onPlayPause: handlePlayPause,
+        onTrim: handleTrim,
+        onNormalize: handleNormalize,
+        onUndo: undo,
+        onRedo: redo,
+    });
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-background">
+            <Toaster position="top-right" richColors />
+
             {/* Slim Toolbar Header */}
             <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
                 <div className="flex items-center gap-3">
@@ -161,6 +203,17 @@ const EditorPage = () => {
                         {audioFile ? fileName : 'No file loaded'}
                     </span>
                 </div>
+
+                {audioUrl && (
+                    <div className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => undo()} title="Undo (Ctrl+Z)">
+                            <Undo2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => redo()} title="Redo (Ctrl+Shift+Z)">
+                            <Redo2 className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
+                )}
             </header>
 
             {!audioUrl ? (
@@ -208,7 +261,11 @@ const EditorPage = () => {
                     {/* Main Workspace */}
                     <div className="flex flex-1 flex-col overflow-y-auto p-4 gap-4">
                         {/* Waveform Canvas Area */}
-                        <AudioPlayer audioUrl={audioUrl} />
+                        <AudioPlayer
+                            audioUrl={audioUrl}
+                            onPlaybackChange={setIsPlaying}
+                            playerRef={playerRef}
+                        />
 
                         {/* Processing Tools */}
                         <Card>
@@ -263,6 +320,8 @@ const EditorPage = () => {
                             audioContext={audioContext}
                             onProcessed={handleNoiseReductionProcessed}
                         />
+
+                        <FrequencyVisualizer audioUrl={audioUrl} />
 
                         <ExportPanel
                             audioBuffer={audioBuffer}

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { temporal } from 'zundo';
 import type { NoiseReductionMode } from '@/lib/noise-reduction';
 
 /* ── Types ──────────────────────────────────────────────────────────── */
@@ -12,6 +13,9 @@ export interface AudioState {
 
     /* Processing flag */
     isProcessing: boolean;
+
+    /* Playback */
+    isPlaying: boolean;
 
     /* Effects */
     volume: number;
@@ -39,6 +43,9 @@ export interface AudioActions {
 
     /* Processing */
     setIsProcessing: (v: boolean) => void;
+
+    /* Playback */
+    setIsPlaying: (v: boolean) => void;
 
     /* Effects */
     setVolume: (v: number) => void;
@@ -69,6 +76,7 @@ const initialState: AudioState = {
     fileName: 'audio',
 
     isProcessing: false,
+    isPlaying: false,
 
     volume: 100,
     reverb: 0,
@@ -84,36 +92,57 @@ const initialState: AudioState = {
     exportSampleRate: 44100,
 };
 
-/* ── Store ──────────────────────────────────────────────────────────── */
+/* ── Store (with undo/redo via zundo) ──────────────────────────────── */
 
-export const useAudioStore = create<AudioState & AudioActions>((set) => ({
-    ...initialState,
+export const useAudioStore = create<AudioState & AudioActions>()(
+    temporal(
+        (set) => ({
+            ...initialState,
 
-    /* File / buffer */
-    setAudioFile: (file) => set({ audioFile: file }),
-    setAudioUrl: (url) => set({ audioUrl: url }),
-    setAudioBuffer: (buffer) => set({ audioBuffer: buffer }),
-    setFileName: (name) => set({ fileName: name }),
+            /* File / buffer */
+            setAudioFile: (file) => set({ audioFile: file }),
+            setAudioUrl: (url) => set({ audioUrl: url }),
+            setAudioBuffer: (buffer) => set({ audioBuffer: buffer }),
+            setFileName: (name) => set({ fileName: name }),
 
-    /* Processing */
-    setIsProcessing: (v) => set({ isProcessing: v }),
+            /* Processing */
+            setIsProcessing: (v) => set({ isProcessing: v }),
 
-    /* Effects */
-    setVolume: (v) => set({ volume: v }),
-    setReverb: (v) => set({ reverb: v }),
-    setEqLow: (v) => set({ eqLow: v }),
-    setEqMid: (v) => set({ eqMid: v }),
-    setEqHigh: (v) => set({ eqHigh: v }),
+            /* Playback */
+            setIsPlaying: (v) => set({ isPlaying: v }),
 
-    /* Noise-reduction */
-    setNoiseReductionProcessing: (mode) => set({ noiseReductionProcessing: mode }),
+            /* Effects */
+            setVolume: (v) => set({ volume: v }),
+            setReverb: (v) => set({ reverb: v }),
+            setEqLow: (v) => set({ eqLow: v }),
+            setEqMid: (v) => set({ eqMid: v }),
+            setEqHigh: (v) => set({ eqHigh: v }),
 
-    /* Export */
-    setIsExporting: (v) => set({ isExporting: v }),
-    setExportFormat: (fmt) => set({ exportFormat: fmt }),
-    setExportBitrate: (br) => set({ exportBitrate: br }),
-    setExportSampleRate: (sr) => set({ exportSampleRate: sr }),
+            /* Noise-reduction */
+            setNoiseReductionProcessing: (mode) => set({ noiseReductionProcessing: mode }),
 
-    /* Reset */
-    resetEditor: () => set({ ...initialState }),
-}));
+            /* Export */
+            setIsExporting: (v) => set({ isExporting: v }),
+            setExportFormat: (fmt) => set({ exportFormat: fmt }),
+            setExportBitrate: (br) => set({ exportBitrate: br }),
+            setExportSampleRate: (sr) => set({ exportSampleRate: sr }),
+
+            /* Reset */
+            resetEditor: () => set({ ...initialState }),
+        }),
+        {
+            // Only track meaningful state changes for undo/redo, not transient UI flags.
+            partialize: (state) => ({
+                audioBuffer: state.audioBuffer,
+                audioUrl: state.audioUrl,
+                fileName: state.fileName,
+                volume: state.volume,
+                reverb: state.reverb,
+                eqLow: state.eqLow,
+                eqMid: state.eqMid,
+                eqHigh: state.eqHigh,
+            }),
+            limit: 50,
+        }
+    )
+);
