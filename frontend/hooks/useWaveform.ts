@@ -22,6 +22,8 @@ const DEFAULT_PX_PER_SEC = 100;
 export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProps) => {
     const waveSurferRef = useRef<WaveSurfer | null>(null);
     const regionsPluginRef = useRef<RegionsPlugin | null>(null);
+    const optionsRef = useRef(options);
+    optionsRef.current = options;
 
     const [isReady, setIsReady] = useState<boolean>(false);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -56,22 +58,22 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
         wavesurfer.on('ready', () => {
             setIsReady(true);
             setDuration(wavesurfer.getDuration());
-            options?.onReady?.();
+            optionsRef.current?.onReady?.();
         });
 
         wavesurfer.on('play', () => {
             setIsPlaying(true);
-            options?.onPlay?.();
+            optionsRef.current?.onPlay?.();
         });
 
         wavesurfer.on('pause', () => {
             setIsPlaying(false);
-            options?.onPause?.();
+            optionsRef.current?.onPause?.();
         });
 
         wavesurfer.on('finish', () => {
             setIsPlaying(false);
-            options?.onFinish?.();
+            optionsRef.current?.onFinish?.();
         });
 
         wavesurfer.on('timeupdate', (time) => {
@@ -86,16 +88,16 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
             wavesurfer.destroy();
         };
 
-    }, [audioUrl, containerRef, options]);
+    }, [audioUrl, containerRef]);
 
-    const play = () => waveSurferRef.current?.play();
-    const pause = () => waveSurferRef.current?.pause();
-    const stop = () => {
+    const play = useCallback(() => waveSurferRef.current?.play(), []);
+    const pause = useCallback(() => waveSurferRef.current?.pause(), []);
+    const stop = useCallback(() => {
         waveSurferRef.current?.stop();
         setCurrentTime(0);
-    };
-    const seekTo = (progress: number) => waveSurferRef.current?.seekTo(progress);
-    const addRegion = (start: number, end: number, color?: string) => {
+    }, []);
+    const seekTo = useCallback((progress: number) => waveSurferRef.current?.seekTo(progress), []);
+    const addRegion = useCallback((start: number, end: number, color?: string) => {
         return regionsPluginRef.current?.addRegion({
             start,
             end,
@@ -103,8 +105,8 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
             drag: true,
             resize: true,
         });
-    };
-    const clearRegions = () => regionsPluginRef.current?.clearRegions();
+    }, []);
+    const clearRegions = useCallback(() => regionsPluginRef.current?.clearRegions(), []);
 
     const zoomIn = useCallback(() => {
         setZoom(prev => {
