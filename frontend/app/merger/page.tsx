@@ -87,12 +87,12 @@ const MergerPage = () => {
 
     const togglePlay = useCallback((id: string) => {
         const fileItem = audioFiles.find((f) => f.id === id);
-        if (!fileItem) return;
+        if (!fileItem || !fileItem.objectUrl) return;
 
         let audioElement = audioElementsRef.current.get(id);
         
         if (!audioElement) {
-            audioElement = new Audio(fileItem.objectUrl || URL.createObjectURL(fileItem.file));
+            audioElement = new Audio(fileItem.objectUrl);
             audioElement.onended = () => {
                 setAudioFiles((prev) =>
                     prev.map((f) => (f.id === id ? { ...f, isPlaying: false } : f))
@@ -187,10 +187,9 @@ const MergerPage = () => {
 
     const totalDuration = audioFiles.reduce((sum, f) => sum + f.duration, 0);
 
-    // Cleanup on unmount
+    // Cleanup on unmount only
     useEffect(() => {
         const audioElements = audioElementsRef.current;
-        const files = audioFiles;
         
         return () => {
             // Cleanup all audio elements
@@ -200,14 +199,15 @@ const MergerPage = () => {
             });
             audioElements.clear();
             
-            // Revoke all object URLs
-            files.forEach((fileItem) => {
+            // Revoke all object URLs on unmount
+            audioFiles.forEach((fileItem) => {
                 if (fileItem.objectUrl) {
                     URL.revokeObjectURL(fileItem.objectUrl);
                 }
             });
         };
-    }, [audioFiles]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-background">
@@ -227,7 +227,7 @@ const MergerPage = () => {
             </header>
 
             {/* Main Content */}
-            <div className="flex flex-1 overflow-hidden p-6 gap-6">
+            <div className="flex flex-1 gap-6 overflow-hidden p-6">
                 {/* Left Panel - File Upload & List */}
                 <div className="flex-1 flex flex-col gap-4 overflow-hidden">
                     {/* Upload Zone */}
