@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -17,6 +17,7 @@ interface AudioFileItem {
     buffer: AudioBuffer | null;
     duration: number;
     isPlaying: boolean;
+    objectUrl?: string;
 }
 
 const MergerPage = () => {
@@ -39,12 +40,14 @@ const MergerPage = () => {
         for (const file of acceptedFiles) {
             try {
                 const buffer = await processor.loadAudioFile(file);
+                const objectUrl = URL.createObjectURL(file);
                 newFiles.push({
                     id: `${Date.now()}-${Math.random()}`,
                     file,
                     buffer,
                     duration: buffer.duration,
                     isPlaying: false,
+                    objectUrl,
                 });
             } catch (error) {
                 toast.error(`Failed to load ${file.name}`);
@@ -73,8 +76,14 @@ const MergerPage = () => {
             audioElementsRef.current.delete(id);
         }
         
+        // Revoke object URL to prevent memory leak
+        const fileItem = audioFiles.find((f) => f.id === id);
+        if (fileItem?.objectUrl) {
+            URL.revokeObjectURL(fileItem.objectUrl);
+        }
+        
         setAudioFiles((prev) => prev.filter((f) => f.id !== id));
-    }, []);
+    }, [audioFiles]);
 
     const togglePlay = useCallback((id: string) => {
         const fileItem = audioFiles.find((f) => f.id === id);
@@ -83,7 +92,7 @@ const MergerPage = () => {
         let audioElement = audioElementsRef.current.get(id);
         
         if (!audioElement) {
-            audioElement = new Audio(URL.createObjectURL(fileItem.file));
+            audioElement = new Audio(fileItem.objectUrl || URL.createObjectURL(fileItem.file));
             audioElement.onended = () => {
                 setAudioFiles((prev) =>
                     prev.map((f) => (f.id === id ? { ...f, isPlaying: false } : f))
@@ -178,6 +187,28 @@ const MergerPage = () => {
 
     const totalDuration = audioFiles.reduce((sum, f) => sum + f.duration, 0);
 
+    // Cleanup on unmount
+    useEffect(() => {
+        const audioElements = audioElementsRef.current;
+        const files = audioFiles;
+        
+        return () => {
+            // Cleanup all audio elements
+            audioElements.forEach((audio) => {
+                audio.pause();
+                audio.src = '';
+            });
+            audioElements.clear();
+            
+            // Revoke all object URLs
+            files.forEach((fileItem) => {
+                if (fileItem.objectUrl) {
+                    URL.revokeObjectURL(fileItem.objectUrl);
+                }
+            });
+        };
+    }, [audioFiles]);
+
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-background">
             <Toaster position="top-right" richColors />
@@ -250,7 +281,7 @@ const MergerPage = () => {
                         <Card className="flex-1 overflow-hidden flex flex-col">
                             <CardHeader>
                                 <CardTitle className="text-sm">
-                                    Audio Files ({audioFiles.length})
+                                    Audio files ({audioFiles.length})
                                 </CardTitle>
                             </CardHeader>
                             <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
