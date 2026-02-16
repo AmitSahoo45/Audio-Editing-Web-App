@@ -13,7 +13,7 @@ import { useAudioStore } from '@/store/audio-store';
 import { useAudioWorker } from '@/hooks/useAudioWorker';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
 import { Button } from '@/components/ui/Button';
-import { Mic, MicOff, Scissors, Volume2, ArrowLeft, Undo2, Redo2 } from 'lucide-react';
+import { Mic, MicOff, Scissors, Volume2, ArrowLeft, Undo2, Redo2, Merge } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useAudioRecorder } from '@/hooks/useAudioRecorder';
 import { Toaster, toast } from 'sonner';
@@ -204,16 +204,25 @@ const EditorPage = () => {
                     </span>
                 </div>
 
-                {audioUrl && (
-                    <div className="flex items-center gap-1">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => undo()} title="Undo (Ctrl+Z)">
-                            <Undo2 className="h-3.5 w-3.5" />
+                <div className="flex items-center gap-2">
+                    <Link href="/merger">
+                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                            <Merge className="h-3.5 w-3.5" />
+                            Merger
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => redo()} title="Redo (Ctrl+Shift+Z)">
-                            <Redo2 className="h-3.5 w-3.5" />
-                        </Button>
-                    </div>
-                )}
+                    </Link>
+                    {audioUrl && (
+                        <div className="flex items-center gap-1">
+                            <div className="h-4 w-px bg-border mx-1" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => undo()} title="Undo (Ctrl+Z)">
+                                <Undo2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => redo()} title="Redo (Ctrl+Shift+Z)">
+                                <Redo2 className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    )}
+                </div>
             </header>
 
             {!audioUrl ? (
