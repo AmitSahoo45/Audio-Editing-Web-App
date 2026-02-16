@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
-import { AudioWaveform, Sparkles, Download } from "lucide-react";
+import { AudioWaveform, Sparkles, Download, Merge } from "lucide-react";
 
 /* ── Navbar ─────────────────────────────────────────────────────────── */
 function Navbar() {
@@ -16,6 +16,9 @@ function Navbar() {
           </Link>
           <Link href="/editor" className="text-xs text-white/50 transition hover:text-white/90">
             Editor
+          </Link>
+          <Link href="/merger" className="text-xs text-white/50 transition hover:text-white/90">
+            Merger
           </Link>
         </div>
         <Link href="/editor">
@@ -156,7 +159,7 @@ function BentoGrid() {
         {/* This card is implicitly placed by removing it from the 2x2 area */}
       </div>
 
-      {/* Separate row for the small export card */}
+      {/* Separate row for the small cards */}
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         <div className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md transition-transform duration-300 hover:scale-[1.02] md:col-span-1">
           <Download className="mb-4 h-8 w-8 text-cyan-400" />
@@ -164,6 +167,14 @@ function BentoGrid() {
           <p className="mt-2 text-sm leading-relaxed text-white/50">
             Bounce your mix to lossless WAV or compressed MP3 in seconds.
             Choose bit-rate, sample-rate, and format—all from the browser.
+          </p>
+        </div>
+        <div className="group overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-6 backdrop-blur-md transition-transform duration-300 hover:scale-[1.02] md:col-span-1">
+          <Merge className="mb-4 h-8 w-8 text-emerald-400" />
+          <h3 className="text-lg font-semibold text-white">Merge Multiple Files</h3>
+          <p className="mt-2 text-sm leading-relaxed text-white/50">
+            Combine multiple audio files into one. Upload, arrange, and
+            merge—all with drag-and-drop simplicity.
           </p>
         </div>
       </div>
