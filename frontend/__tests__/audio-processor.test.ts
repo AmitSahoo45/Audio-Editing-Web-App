@@ -32,6 +32,9 @@ class FakeAudioBuffer {
 
 class FakeAudioContext {
     createBuffer(channels: number, length: number, sampleRate: number) {
+        if (length < 1) {
+            throw new Error('createBuffer: length must be at least 1');
+        }
         return new FakeAudioBuffer(channels, length, sampleRate);
     }
 }
@@ -68,10 +71,9 @@ describe('AudioProcessor', () => {
             expect(trimmed.getChannelData(1)[0]).toBeCloseTo(-0.5);
         });
 
-        it('returns empty buffer when start equals end', () => {
+        it('throws when start equals end', () => {
             const buf = new FakeAudioBuffer(1, 100, 100) as unknown as AudioBuffer;
-            const trimmed = processor.trimAudio(buf, 0.5, 0.5);
-            expect(trimmed.length).toBe(0);
+            expect(() => processor.trimAudio(buf, 0.5, 0.5)).toThrow('Invalid trim range');
         });
     });
 
@@ -104,6 +106,18 @@ describe('AudioProcessor', () => {
             expect(normalized.getChannelData(1)[0]).toBeCloseTo(0.2);
             expect(normalized.getChannelData(1)[1]).toBeCloseTo(-1.0);
         });
+
+        it('leaves silence as zeros without NaN', () => {
+            const buf = new FakeAudioBuffer(1, 4, 44100) as unknown as AudioBuffer;
+            buf.getChannelData(0).fill(0);
+
+            const normalized = processor.normalizeAudio(buf);
+            const out = normalized.getChannelData(0);
+            expect(Array.from(out)).toEqual([0, 0, 0, 0]);
+            for (let i = 0; i < out.length; i++) {
+                expect(Number.isNaN(out[i])).toBe(false);
+            }
+        });
     });
 
     describe('mergeAudioBuffers', () => {
@@ -121,6 +135,37 @@ describe('AudioProcessor', () => {
 
         it('throws on empty array', () => {
             expect(() => processor.mergeAudioBuffers([])).toThrow('No buffers to merge');
+        });
+
+        it('merges mono and stereo into stereo without throw', () => {
+            const mono = new FakeAudioBuffer(1, 4, 44100) as unknown as AudioBuffer;
+            mono.getChannelData(0).set([0.1, 0.2, 0.3, 0.4]);
+
+            const stereo = new FakeAudioBuffer(2, 3, 44100) as unknown as AudioBuffer;
+            stereo.getChannelData(0).set([1, 1, 1]);
+            stereo.getChannelData(1).set([-1, -1, -1]);
+
+            const merged = processor.mergeAudioBuffers([mono, stereo]);
+            expect(merged.numberOfChannels).toBe(2);
+            expect(merged.length).toBe(7);
+            expect(merged.getChannelData(0)[0]).toBeCloseTo(0.1);
+            expect(merged.getChannelData(1)[0]).toBeCloseTo(0.1);
+            expect(merged.getChannelData(0)[4]).toBeCloseTo(1);
+            expect(merged.getChannelData(1)[4]).toBeCloseTo(-1);
+        });
+
+        it('uses higher sample rate and approximate resampled total length', () => {
+            const low = new FakeAudioBuffer(1, 100, 22050) as unknown as AudioBuffer;
+            low.getChannelData(0).fill(0.5);
+
+            const high = new FakeAudioBuffer(1, 100, 44100) as unknown as AudioBuffer;
+            high.getChannelData(0).fill(0.25);
+
+            const merged = processor.mergeAudioBuffers([low, high]);
+            expect(merged.sampleRate).toBe(44100);
+            const expectedLen =
+                Math.round(100 * 44100 / 22050) + 100;
+            expect(merged.length).toBe(expectedLen);
         });
     });
 });

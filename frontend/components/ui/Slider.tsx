@@ -14,17 +14,20 @@ interface SliderProps {
 }
 
 export function Slider({ value, onValueChange, min = 0, max = 100, step = 1, label, className = '' }: SliderProps) {
+    const id = React.useId();
     const [showTooltip, setShowTooltip] = React.useState(false);
 
     return (
         <div className={`flex flex-col gap-1.5 ${className}`}>
             {label && (
                 <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-text-muted">{label}</label>
+                    <label htmlFor={id} className="text-xs font-medium text-text-muted">{label}</label>
                     <span className="text-xs tabular-nums text-text-dim">{value[0]}</span>
                 </div>
             )}
             <SliderPrimitive.Root
+                id={id}
+                aria-label={label}
                 className="relative flex h-4 w-full touch-none items-center select-none"
                 value={value}
                 onValueChange={onValueChange}
@@ -33,6 +36,8 @@ export function Slider({ value, onValueChange, min = 0, max = 100, step = 1, lab
                 step={step}
                 onPointerEnter={() => setShowTooltip(true)}
                 onPointerLeave={() => setShowTooltip(false)}
+                onFocusCapture={() => setShowTooltip(true)}
+                onBlurCapture={() => setShowTooltip(false)}
             >
                 <SliderPrimitive.Track className="relative h-[3px] w-full grow rounded-full bg-border">
                     <SliderPrimitive.Range className="absolute h-full rounded-full bg-accent" />

@@ -25,8 +25,11 @@ const MergerPage = () => {
     const [outputFileName, setOutputFileName] = useState('merged-audio');
     const [isProcessing, setIsProcessing] = useState(false);
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [overIndex, setOverIndex] = useState<number | null>(null);
     const audioContext = useAudioContext();
     const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+    const urlsRef = useRef<string[]>([]);
+    const dragSourceIndexRef = useRef<number | null>(null);
 
     const onDrop = useCallback(async (acceptedFiles: File[]) => {
         if (!audioContext) {
@@ -116,24 +119,39 @@ const MergerPage = () => {
     }, [audioFiles]);
 
     const handleDragStart = (index: number) => {
+        dragSourceIndexRef.current = index;
         setDraggedIndex(index);
     };
 
     const handleDragOver = (e: React.DragEvent, index: number) => {
         e.preventDefault();
-        if (draggedIndex === null || draggedIndex === index) return;
+        if (dragSourceIndexRef.current === null || dragSourceIndexRef.current === index) return;
+        setOverIndex(index);
+    };
 
-        const newFiles = [...audioFiles];
-        const draggedFile = newFiles[draggedIndex];
-        newFiles.splice(draggedIndex, 1);
-        newFiles.splice(index, 0, draggedFile);
+    const handleDrop = (e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        const from = dragSourceIndexRef.current;
+        if (from === null || from === index) {
+            setOverIndex(null);
+            return;
+        }
 
-        setAudioFiles(newFiles);
-        setDraggedIndex(index);
+        setAudioFiles((prev) => {
+            const next = [...prev];
+            const [item] = next.splice(from, 1);
+            next.splice(index, 0, item);
+            return next;
+        });
+        dragSourceIndexRef.current = null;
+        setDraggedIndex(null);
+        setOverIndex(null);
     };
 
     const handleDragEnd = () => {
+        dragSourceIndexRef.current = null;
         setDraggedIndex(null);
+        setOverIndex(null);
     };
 
     const handleMerge = async () => {
@@ -187,26 +205,26 @@ const MergerPage = () => {
 
     const totalDuration = audioFiles.reduce((sum, f) => sum + f.duration, 0);
 
-    // Cleanup on unmount only
+    useEffect(() => {
+        urlsRef.current = audioFiles
+            .map((f) => f.objectUrl)
+            .filter((url): url is string => Boolean(url));
+    }, [audioFiles]);
+
     useEffect(() => {
         const audioElements = audioElementsRef.current;
-        
+
         return () => {
-            // Cleanup all audio elements
             audioElements.forEach((audio) => {
                 audio.pause();
                 audio.src = '';
             });
             audioElements.clear();
-            
-            // Revoke all object URLs on unmount
-            audioFiles.forEach((fileItem) => {
-                if (fileItem.objectUrl) {
-                    URL.revokeObjectURL(fileItem.objectUrl);
-                }
+
+            urlsRef.current.forEach((url) => {
+                URL.revokeObjectURL(url);
             });
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     return (
@@ -216,11 +234,11 @@ const MergerPage = () => {
             {/* Header */}
             <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
                 <div className="flex items-center gap-3">
-                    <Link href="/">
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <Button asChild variant="ghost" size="icon" className="h-7 w-7">
+                        <Link href="/">
                             <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                    </Link>
+                        </Link>
+                    </Button>
                     <div className="h-4 w-px bg-border" />
                     <h1 className="text-sm font-semibold text-foreground">Audio Merger</h1>
                 </div>
@@ -291,10 +309,11 @@ const MergerPage = () => {
                                         draggable
                                         onDragStart={() => handleDragStart(index)}
                                         onDragOver={(e) => handleDragOver(e, index)}
+                                        onDrop={(e) => handleDrop(e, index)}
                                         onDragEnd={handleDragEnd}
                                         className={`flex items-center gap-2 p-3 rounded-lg border border-border bg-surface cursor-move transition-colors ${
                                             draggedIndex === index ? 'opacity-50' : ''
-                                        } hover:border-slate-500`}
+                                        } ${overIndex === index ? 'border-blue-500' : ''} hover:border-slate-500`}
                                     >
                                         <GripVertical className="h-4 w-4 text-slate-500 shrink-0" />
                                         

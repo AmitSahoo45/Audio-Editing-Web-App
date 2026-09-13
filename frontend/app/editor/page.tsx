@@ -1,17 +1,17 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import FileUpload from '@/components/audio-editor/FileUpload';
-import AudioPlayer from '@/components/audio-editor/AudioPlayer';
+import AudioPlayer, { type AudioPlayerHandle } from '@/components/audio-editor/AudioPlayer';
 import EffectsPanel from '@/components/audio-editor/EffectsPanel';
 import { ExportPanel } from '@/components/audio-editor/ExportPanel';
 import NoiseReductionPanel from '@/components/audio-editor/NoiseReductionPanel';
 import { useAudioContext } from '@/hooks/useAudioContext';
 import { AudioProcessor } from '@/lib/audio-processor';
-import { AudioEffects } from '@/lib/audio-effects';
 import { useAudioStore } from '@/store/audio-store';
 import { useAudioWorker } from '@/hooks/useAudioWorker';
 import { useKeyboardShortcuts } from '@/hooks/useKeyboardShortcuts';
+import { usePlaybackGraph } from '@/hooks/usePlaybackGraph';
 import { Button } from '@/components/ui/Button';
 import { Mic, MicOff, Scissors, Volume2, ArrowLeft, Undo2, Redo2, Merge } from 'lucide-react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -26,16 +26,17 @@ const EditorPage = () => {
     const { trimAudio, normalizeAudio, audioBufferToWav } = useAudioWorker();
 
     const {
-        audioFile,
         audioUrl,
         audioBuffer,
         fileName,
         isProcessing,
         isPlaying,
-        setAudioFile,
-        setAudioUrl,
-        setAudioBuffer,
-        setFileName,
+        volume,
+        reverb,
+        eqLow,
+        eqMid,
+        eqHigh,
+        setAudioState,
         setIsProcessing,
         setIsPlaying,
         resetEditor,
@@ -43,130 +44,176 @@ const EditorPage = () => {
 
     const { undo, redo } = useAudioStore.temporal.getState();
 
-    const audioEffectsRef = useRef<AudioEffects | null>(null);
-    const playerRef = useRef<{ play: () => void; pause: () => void } | null>(null);
+    const playerRef = useRef<AudioPlayerHandle | null>(null);
+    const opIdRef = useRef(0);
+    const pendingFileRef = useRef<File | null>(null);
+    const [mediaElement, setMediaElement] = useState<HTMLMediaElement | null>(null);
+
+    const { analyser } = usePlaybackGraph({
+        audioContext,
+        mediaElement,
+        params: { volume, reverb, eqLow, eqMid, eqHigh },
+        enabled: !!audioUrl && !!mediaElement,
+    });
+
+    const loadFile = useCallback(async (file: File, context: AudioContext) => {
+        const opId = ++opIdRef.current;
+        setIsProcessing(true);
+        try {
+            const processor = new AudioProcessor(context);
+            const buffer = await processor.loadAudioFile(file);
+            if (opId !== opIdRef.current) return;
+
+            const url = URL.createObjectURL(file);
+            setAudioState({
+                audioFile: file,
+                audioUrl: url,
+                audioBuffer: buffer,
+                fileName: file.name,
+            });
+        } catch (error) {
+            if (opId !== opIdRef.current) return;
+            toast.error((error as Error).message || 'Failed to load audio file.');
+            resetEditor();
+        } finally {
+            if (opId === opIdRef.current) setIsProcessing(false);
+        }
+    }, [setAudioState, setIsProcessing, resetEditor]);
 
     const handleFileSelect = useCallback(async (file: File) => {
-        setAudioFile(file);
-        setFileName(file.name);
-
-        const url = URL.createObjectURL(file);
-        setAudioUrl(url);
-
-        if (audioContext) {
-            try {
-                const processor = new AudioProcessor(audioContext);
-                const buffer = await processor.loadAudioFile(file);
-                setAudioBuffer(buffer);
-
-                const effects = new AudioEffects();
-                await effects.initialize(url);
-                audioEffectsRef.current = effects;
-            } catch (error) {
-                toast.error((error as Error).message || 'Failed to load audio file.');
-                resetEditor();
-            }
+        if (!audioContext) {
+            pendingFileRef.current = file;
+            return;
         }
-    }, [audioContext, setAudioFile, setFileName, setAudioUrl, setAudioBuffer, resetEditor]);
+        pendingFileRef.current = null;
+        await loadFile(file, audioContext);
+    }, [audioContext, loadFile]);
+
+    useEffect(() => {
+        if (!audioContext || !pendingFileRef.current) return;
+        const file = pendingFileRef.current;
+        pendingFileRef.current = null;
+        void loadFile(file, audioContext);
+    }, [audioContext, loadFile]);
 
     const handleRecordingToggle = useCallback(async () => {
         if (isRecording) {
             stopRecording();
-        } else {
-            clearRecording();
+            return;
+        }
+        clearRecording();
+        try {
             await startRecording();
+        } catch (error) {
+            toast.error((error as Error).message || 'Failed to start recording.');
         }
     }, [isRecording, startRecording, stopRecording, clearRecording]);
 
-    // Load recorded audio when recording stops
     const handleUseRecording = useCallback(async () => {
-        if (recordedBlob && audioContext) {
-            const url = URL.createObjectURL(recordedBlob);
-            setAudioUrl(url);
-            setFileName('recording.webm');
-
-            try {
-                const arrayBuffer = await recordedBlob.arrayBuffer();
-                const buffer = await audioContext.decodeAudioData(arrayBuffer);
-                setAudioBuffer(buffer);
-
-                const effects = new AudioEffects();
-                await effects.initialize(url);
-                audioEffectsRef.current = effects;
-            } catch {
-                toast.error('Failed to decode recorded audio. The recording may be corrupted or in an unsupported format.');
-            }
+        if (!recordedBlob) return;
+        if (!audioContext) {
+            toast.error('Web Audio is not available.');
+            return;
         }
-    }, [recordedBlob, audioContext, setAudioUrl, setFileName, setAudioBuffer]);
+
+        const opId = ++opIdRef.current;
+        setIsProcessing(true);
+        const file = new File(
+            [recordedBlob],
+            'recording.webm',
+            { type: recordedBlob.type || 'audio/webm' }
+        );
+
+        try {
+            const arrayBuffer = await recordedBlob.arrayBuffer();
+            const buffer = await audioContext.decodeAudioData(arrayBuffer);
+            if (opId !== opIdRef.current) return;
+
+            const url = URL.createObjectURL(recordedBlob);
+            setAudioState({
+                audioFile: file,
+                audioUrl: url,
+                audioBuffer: buffer,
+                fileName: 'recording.webm',
+            });
+        } catch {
+            if (opId !== opIdRef.current) return;
+            toast.error('Failed to decode recorded audio. The recording may be corrupted or in an unsupported format.');
+        } finally {
+            if (opId === opIdRef.current) setIsProcessing(false);
+        }
+    }, [recordedBlob, audioContext, setAudioState, setIsProcessing]);
 
     const handleNormalize = useCallback(async () => {
         if (!audioBuffer || !audioContext) return;
+        const opId = ++opIdRef.current;
         setIsProcessing(true);
         try {
             const normalized = await normalizeAudio(audioBuffer, audioContext);
-            setAudioBuffer(normalized);
+            if (opId !== opIdRef.current) return;
 
             const blob = await audioBufferToWav(normalized);
             const url = URL.createObjectURL(blob);
-            setAudioUrl(url);
+            setAudioState({ audioBuffer: normalized, audioUrl: url });
             toast.success('Audio normalized.');
         } catch (error) {
+            if (opId !== opIdRef.current) return;
             console.error('Normalization failed:', error);
             toast.error('Normalization failed.');
         } finally {
-            setIsProcessing(false);
+            if (opId === opIdRef.current) setIsProcessing(false);
         }
-    }, [audioBuffer, audioContext, setIsProcessing, setAudioBuffer, setAudioUrl, normalizeAudio, audioBufferToWav]);
+    }, [audioBuffer, audioContext, setIsProcessing, setAudioState, normalizeAudio, audioBufferToWav]);
 
     const handleTrim = useCallback(async () => {
         if (!audioBuffer || !audioContext) return;
+        const range = playerRef.current?.getTrimRange() ?? null;
+        if (!range) {
+            toast.error('Drag on the waveform to select a region');
+            return;
+        }
+
+        const opId = ++opIdRef.current;
         setIsProcessing(true);
         try {
-            const duration = audioBuffer.duration;
-            // Trim 10% from start and end as a default trim
             const trimmed = await trimAudio(
                 audioBuffer,
-                duration * 0.1,
-                duration * 0.9,
+                range.start,
+                range.end,
                 audioContext
             );
-            setAudioBuffer(trimmed);
+            if (opId !== opIdRef.current) return;
 
             const blob = await audioBufferToWav(trimmed);
             const url = URL.createObjectURL(blob);
-            setAudioUrl(url);
+            setAudioState({ audioBuffer: trimmed, audioUrl: url });
             toast.success('Audio trimmed.');
         } catch (error) {
+            if (opId !== opIdRef.current) return;
             console.error('Trim failed:', error);
             toast.error('Trim failed.');
         } finally {
-            setIsProcessing(false);
+            if (opId === opIdRef.current) setIsProcessing(false);
         }
-    }, [audioBuffer, audioContext, setIsProcessing, setAudioBuffer, setAudioUrl, trimAudio, audioBufferToWav]);
+    }, [audioBuffer, audioContext, setIsProcessing, setAudioState, trimAudio, audioBufferToWav]);
 
-    const handleVolumeChange = useCallback((volume: number) => {
-        audioEffectsRef.current?.setVolume(volume);
-    }, []);
-
-    const handleReverbChange = useCallback((decay: number) => {
-        audioEffectsRef.current?.setReverb(decay);
-    }, []);
-
-    const handleEQChange = useCallback((low: number, mid: number, high: number) => {
-        audioEffectsRef.current?.setEQ(low, mid, high);
-    }, []);
-
-    const handleNoiseReductionProcessed = useCallback(async (processed: AudioBuffer, url: string) => {
-        setAudioBuffer(processed);
-        setAudioUrl(url);
-
-        // Re-initialize effects with the new URL
-        audioEffectsRef.current?.dispose();
-        const effects = new AudioEffects();
-        await effects.initialize(url);
-        audioEffectsRef.current = effects;
+    const handleNoiseReductionProcessed = useCallback((processed: AudioBuffer, url: string) => {
+        const { audioUrl: currentUrl } = useAudioStore.getState();
+        if (!currentUrl || opIdRef.current === 0) {
+            URL.revokeObjectURL(url);
+            return;
+        }
+        setAudioState({ audioBuffer: processed, audioUrl: url });
         toast.success('Noise reduction applied.');
-    }, [setAudioBuffer, setAudioUrl]);
+    }, [setAudioState]);
+
+    const handleLoadNewFile = useCallback(() => {
+        opIdRef.current = 0;
+        pendingFileRef.current = null;
+        setMediaElement(null);
+        resetEditor();
+        useAudioStore.temporal.getState().clear();
+    }, [resetEditor]);
 
     const handlePlayPause = useCallback(() => {
         if (isPlaying) {
@@ -176,7 +223,6 @@ const EditorPage = () => {
         }
     }, [isPlaying]);
 
-    // Keyboard shortcuts
     useKeyboardShortcuts({
         onPlayPause: handlePlayPause,
         onTrim: handleTrim,
@@ -189,28 +235,27 @@ const EditorPage = () => {
         <div className="flex h-screen flex-col overflow-hidden bg-background">
             <Toaster position="top-right" richColors />
 
-            {/* Slim Toolbar Header */}
             <header className="flex h-11 shrink-0 items-center justify-between border-b border-border bg-surface px-4">
                 <div className="flex items-center gap-3">
-                    <Link href="/">
-                        <Button variant="ghost" size="icon" className="h-7 w-7">
+                    <Button asChild variant="ghost" size="icon" className="h-7 w-7">
+                        <Link href="/">
                             <ArrowLeft className="h-4 w-4" />
-                        </Button>
-                    </Link>
+                        </Link>
+                    </Button>
                     <div className="h-4 w-px bg-border" />
                     <h1 className="text-sm font-semibold text-foreground">Audio Editor</h1>
                     <span className="text-xs text-text-dim">
-                        {audioFile ? fileName : 'No file loaded'}
+                        {audioUrl ? fileName : 'No file loaded'}
                     </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                    <Link href="/merger">
-                        <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                    <Button asChild variant="ghost" size="sm" className="h-7 text-xs gap-1">
+                        <Link href="/merger">
                             <Merge className="h-3.5 w-3.5" />
                             Merger
-                        </Button>
-                    </Link>
+                        </Link>
+                    </Button>
                     {audioUrl && (
                         <div className="flex items-center gap-1">
                             <div className="h-4 w-px bg-border mx-1" />
@@ -226,7 +271,6 @@ const EditorPage = () => {
             </header>
 
             {!audioUrl ? (
-                /* Upload / Record Section - centered on screen */
                 <div className="flex flex-1 items-center justify-center p-8">
                     <div className="w-full max-w-lg space-y-6">
                         <FileUpload onFileSelect={handleFileSelect} />
@@ -265,18 +309,15 @@ const EditorPage = () => {
                     </div>
                 </div>
             ) : (
-                /* Editor Section - Desktop App Layout */
                 <div className="flex flex-1 overflow-hidden">
-                    {/* Main Workspace */}
                     <div className="flex flex-1 flex-col overflow-y-auto p-4 gap-4">
-                        {/* Waveform Canvas Area */}
                         <AudioPlayer
                             audioUrl={audioUrl}
                             onPlaybackChange={setIsPlaying}
+                            onMediaReady={setMediaElement}
                             playerRef={playerRef}
                         />
 
-                        {/* Processing Tools */}
                         <Card>
                             <CardHeader>
                                 <CardTitle>Processing</CardTitle>
@@ -289,7 +330,7 @@ const EditorPage = () => {
                                     size="sm"
                                 >
                                     <Scissors className="mr-1.5 h-3.5 w-3.5" />
-                                    Trim Edges
+                                    Trim Region
                                 </Button>
                                 <Button
                                     onClick={handleNormalize}
@@ -301,11 +342,7 @@ const EditorPage = () => {
                                     Normalize
                                 </Button>
                                 <Button
-                                    onClick={() => {
-                                        audioEffectsRef.current?.dispose();
-                                        audioEffectsRef.current = null;
-                                        resetEditor();
-                                    }}
+                                    onClick={handleLoadNewFile}
                                     variant="ghost"
                                     size="sm"
                                 >
@@ -315,14 +352,8 @@ const EditorPage = () => {
                         </Card>
                     </div>
 
-                    {/* Fixed Sidebar */}
                     <aside className="w-80 shrink-0 overflow-y-auto border-l border-border bg-surface p-4 space-y-4">
-                        <EffectsPanel
-                            audioUrl={audioUrl}
-                            onVolumeChange={handleVolumeChange}
-                            onReverbChange={handleReverbChange}
-                            onEQChange={handleEQChange}
-                        />
+                        <EffectsPanel />
 
                         <NoiseReductionPanel
                             audioBuffer={audioBuffer}
@@ -330,7 +361,7 @@ const EditorPage = () => {
                             onProcessed={handleNoiseReductionProcessed}
                         />
 
-                        <FrequencyVisualizer audioUrl={audioUrl} />
+                        <FrequencyVisualizer analyser={analyser} isPlaying={isPlaying} />
 
                         <ExportPanel
                             audioBuffer={audioBuffer}

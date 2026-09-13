@@ -31,8 +31,13 @@ export interface AudioState {
     isExporting: boolean;
     exportFormat: 'mp3' | 'wav';
     exportBitrate: number;
-    exportSampleRate: number;
+    exportSampleRate: number | null;
 }
+
+type AudioFileFields = Pick<
+    AudioState,
+    'audioFile' | 'audioUrl' | 'audioBuffer' | 'fileName'
+>;
 
 export interface AudioActions {
     /* File / buffer */
@@ -40,6 +45,7 @@ export interface AudioActions {
     setAudioUrl: (url: string | null) => void;
     setAudioBuffer: (buffer: AudioBuffer | null) => void;
     setFileName: (name: string) => void;
+    setAudioState: (partial: Partial<AudioFileFields>) => void;
 
     /* Processing */
     setIsProcessing: (v: boolean) => void;
@@ -61,7 +67,7 @@ export interface AudioActions {
     setIsExporting: (v: boolean) => void;
     setExportFormat: (fmt: 'mp3' | 'wav') => void;
     setExportBitrate: (br: number) => void;
-    setExportSampleRate: (sr: number) => void;
+    setExportSampleRate: (sr: number | null) => void;
 
     /* Reset */
     resetEditor: () => void;
@@ -89,14 +95,24 @@ const initialState: AudioState = {
     isExporting: false,
     exportFormat: 'mp3',
     exportBitrate: 128,
-    exportSampleRate: 44100,
+    exportSampleRate: null,
 };
+
+function revokeBlobUrl(url: string | null | undefined) {
+    if (url && url.startsWith('blob:')) {
+        try {
+            URL.revokeObjectURL(url);
+        } catch {
+            /* ignore */
+        }
+    }
+}
 
 /* ── Store (with undo/redo via zundo) ──────────────────────────────── */
 
 export const useAudioStore = create<AudioState & AudioActions>()(
     temporal(
-        (set) => ({
+        (set, get) => ({
             ...initialState,
 
             /* File / buffer */
@@ -104,6 +120,7 @@ export const useAudioStore = create<AudioState & AudioActions>()(
             setAudioUrl: (url) => set({ audioUrl: url }),
             setAudioBuffer: (buffer) => set({ audioBuffer: buffer }),
             setFileName: (name) => set({ fileName: name }),
+            setAudioState: (partial) => set(partial),
 
             /* Processing */
             setIsProcessing: (v) => set({ isProcessing: v }),
@@ -128,7 +145,10 @@ export const useAudioStore = create<AudioState & AudioActions>()(
             setExportSampleRate: (sr) => set({ exportSampleRate: sr }),
 
             /* Reset */
-            resetEditor: () => set({ ...initialState }),
+            resetEditor: () => {
+                revokeBlobUrl(get().audioUrl);
+                set({ ...initialState });
+            },
         }),
         {
             // Only track meaningful state changes for undo/redo, not transient UI flags.

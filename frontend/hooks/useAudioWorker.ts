@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import type { WorkerResponse } from '@/workers/audio-worker';
 
 type WorkerMessage =
@@ -39,12 +39,29 @@ function channelsToBuffer(
 export function useAudioWorker() {
     const workerRef = useRef<Worker | null>(null);
     const nextIdRef = useRef(0);
+    const pendingRef = useRef(
+        new Map<number, {
+            resolve: (value: WorkerResponse) => void;
+            reject: (reason?: unknown) => void;
+        }>()
+    );
 
     const getWorker = useCallback(() => {
         if (!workerRef.current) {
-            workerRef.current = new Worker(
+            const worker = new Worker(
                 new URL('../workers/audio-worker.ts', import.meta.url)
             );
+            worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+                const pending = pendingRef.current.get(e.data.id);
+                if (!pending) return;
+                pendingRef.current.delete(e.data.id);
+                if (e.data.type === 'error') {
+                    pending.reject(new Error(e.data.message));
+                } else {
+                    pending.resolve(e.data);
+                }
+            };
+            workerRef.current = worker;
         }
         return workerRef.current;
     }, []);
@@ -54,16 +71,7 @@ export function useAudioWorker() {
             new Promise((resolve, reject) => {
                 const worker = getWorker();
                 const id = nextIdRef.current++;
-                const handler = (e: MessageEvent<WorkerResponse>) => {
-                    if (e.data.id !== id) return;
-                    worker.removeEventListener('message', handler);
-                    if (e.data.type === 'error') {
-                        reject(new Error(e.data.message));
-                    } else {
-                        resolve(e.data);
-                    }
-                };
-                worker.addEventListener('message', handler);
+                pendingRef.current.set(id, { resolve, reject });
                 worker.postMessage({ ...msg, id });
             }),
         [getWorker]
@@ -114,9 +122,19 @@ export function useAudioWorker() {
     );
 
     const terminate = useCallback(() => {
+        for (const { reject } of pendingRef.current.values()) {
+            reject(new Error('Worker terminated'));
+        }
+        pendingRef.current.clear();
         workerRef.current?.terminate();
         workerRef.current = null;
     }, []);
+
+    useEffect(() => {
+        return () => {
+            terminate();
+        };
+    }, [terminate]);
 
     return { trimAudio, normalizeAudio, audioBufferToWav, terminate };
 }

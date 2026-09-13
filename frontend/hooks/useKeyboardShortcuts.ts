@@ -21,61 +21,72 @@ interface KeyboardShortcutsOptions {
  *  Ctrl+Shift+Z   – Redo
  */
 export function useKeyboardShortcuts(opts: KeyboardShortcutsOptions) {
+    const { onPlayPause, onTrim, onNormalize, onDelete, onUndo, onRedo } = opts;
+
     const handleKeyDown = useCallback(
         (e: KeyboardEvent) => {
-            // Skip when user is typing in an input/textarea
-            if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
+            const target = e.target;
+            const el = target instanceof Element ? target : null;
+            const isEditable =
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                target instanceof HTMLSelectElement ||
+                (el instanceof HTMLElement && el.isContentEditable);
+            const isNativeControl =
+                target instanceof HTMLButtonElement ||
+                target instanceof HTMLSelectElement ||
+                el?.closest('a, button, [role="button"]') != null;
             const ctrl = e.ctrlKey || e.metaKey;
 
-            // Undo / Redo
+            if (ctrl) {
+                if (isEditable) return;
+            } else if (isEditable || isNativeControl) {
+                return;
+            }
+
             if (ctrl && e.key === 'z' && !e.shiftKey) {
                 e.preventDefault();
-                opts.onUndo?.();
+                onUndo?.();
                 return;
             }
             if (ctrl && e.key === 'z' && e.shiftKey) {
                 e.preventDefault();
-                opts.onRedo?.();
+                onRedo?.();
                 return;
             }
             if (ctrl && e.key === 'y') {
                 e.preventDefault();
-                opts.onRedo?.();
+                onRedo?.();
                 return;
             }
 
-            // Play / Pause
             if (e.code === 'Space') {
                 e.preventDefault();
-                opts.onPlayPause?.();
+                onPlayPause?.();
                 return;
             }
 
-            // Trim (Ctrl+X)
             if (ctrl && e.key === 'x') {
                 e.preventDefault();
-                opts.onTrim?.();
+                onTrim?.();
                 return;
             }
 
-            // Normalize (Ctrl+Shift+L)
             if (ctrl && e.shiftKey && e.key === 'L') {
                 e.preventDefault();
-                opts.onNormalize?.();
+                onNormalize?.();
                 return;
             }
 
-            // Delete region
             if (e.key === 'Delete' || e.key === 'Backspace') {
-                if (!ctrl) {
+                if (!ctrl && onDelete) {
                     e.preventDefault();
-                    opts.onDelete?.();
+                    onDelete();
                 }
                 return;
             }
         },
-        [opts]
+        [onPlayPause, onTrim, onNormalize, onDelete, onUndo, onRedo]
     );
 
     useEffect(() => {

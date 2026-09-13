@@ -1,3 +1,76 @@
+import { encodeWav } from './pcm';
+
+function resampleLinear(src: Float32Array, fromRate: number, toRate: number): Float32Array {
+    if (fromRate === toRate || src.length === 0) {
+        return src;
+    }
+    const ratio = fromRate / toRate;
+    const outLen = Math.max(1, Math.round(src.length * toRate / fromRate));
+    const out = new Float32Array(outLen);
+    const last = src.length - 1;
+    for (let i = 0; i < outLen; i++) {
+        const pos = i * ratio;
+        const i0 = Math.min(Math.floor(pos), last);
+        const i1 = Math.min(i0 + 1, last);
+        const frac = pos - Math.floor(pos);
+        out[i] = src[i0] * (1 - frac) + src[i1] * frac;
+    }
+    return out;
+}
+
+function toTargetChannels(
+    buffer: AudioBuffer,
+    targetChannels: number,
+    sampleRate: number
+): Float32Array[] {
+    const channels: Float32Array[] = [];
+    const n = buffer.numberOfChannels;
+
+    if (targetChannels === 1) {
+        if (n === 1) {
+            channels.push(resampleLinear(buffer.getChannelData(0), buffer.sampleRate, sampleRate));
+        } else {
+            const len = buffer.length;
+            const mono = new Float32Array(len);
+            for (let i = 0; i < len; i++) {
+                let sum = 0;
+                for (let ch = 0; ch < n; ch++) {
+                    sum += buffer.getChannelData(ch)[i];
+                }
+                mono[i] = sum / n;
+            }
+            channels.push(resampleLinear(mono, buffer.sampleRate, sampleRate));
+        }
+    } else {
+        // stereo (cap at 2)
+        if (n === 1) {
+            const L = resampleLinear(buffer.getChannelData(0), buffer.sampleRate, sampleRate);
+            channels.push(L, L);
+        } else {
+            const L = resampleLinear(buffer.getChannelData(0), buffer.sampleRate, sampleRate);
+            if (n === 2) {
+                channels.push(
+                    L,
+                    resampleLinear(buffer.getChannelData(1), buffer.sampleRate, sampleRate)
+                );
+            } else {
+                const len = buffer.length;
+                const R = new Float32Array(len);
+                for (let i = 0; i < len; i++) {
+                    let sum = 0;
+                    for (let ch = 1; ch < n; ch++) {
+                        sum += buffer.getChannelData(ch)[i];
+                    }
+                    R[i] = sum / (n - 1);
+                }
+                channels.push(L, resampleLinear(R, buffer.sampleRate, sampleRate));
+            }
+        }
+    }
+
+    return channels;
+}
+
 export class AudioProcessor {
     private audioContext: AudioContext
 
@@ -32,8 +105,18 @@ export class AudioProcessor {
         endTime: number
     ): AudioBuffer {
         const sampleRate = audioBuffer.sampleRate
-        const startSample = Math.floor(startTime * sampleRate)
-        const endSample = Math.floor(endTime * sampleRate)
+        const duration = audioBuffer.duration
+        const start = Math.max(0, Math.min(startTime, duration))
+        const end = Math.max(0, Math.min(endTime, duration))
+        let startSample = Math.floor(start * sampleRate)
+        let endSample = Math.floor(end * sampleRate)
+        startSample = Math.max(0, Math.min(startSample, audioBuffer.length))
+        endSample = Math.max(0, Math.min(endSample, audioBuffer.length))
+
+        if (endSample <= startSample) {
+            throw new Error('Invalid trim range')
+        }
+
         const length = endSample - startSample
 
         const trimmedBuffer = this.audioContext.createBuffer(
@@ -57,12 +140,15 @@ export class AudioProcessor {
         if (buffers.length === 0)
             throw new Error('No buffers to merge');
 
-        const sampleRate = buffers[0].sampleRate;
-        const numberOfChannels = buffers[0].numberOfChannels;
+        const sampleRate = Math.max(...buffers.map((b) => b.sampleRate));
+        const maxChannels = Math.max(...buffers.map((b) => b.numberOfChannels));
+        const numberOfChannels = maxChannels >= 2 ? 2 : 1;
 
-        const totalLength = buffers.reduce((sum, buffer) =>
-            sum + buffer.length, 0
+        const prepared = buffers.map((buffer) =>
+            toTargetChannels(buffer, numberOfChannels, sampleRate)
         );
+
+        const totalLength = prepared.reduce((sum, chs) => sum + chs[0].length, 0);
 
         const mergedBuffer = this.audioContext.createBuffer(
             numberOfChannels,
@@ -71,14 +157,12 @@ export class AudioProcessor {
         );
 
         let offset = 0;
-        buffers.forEach(buffer => {
+        for (const channelData of prepared) {
             for (let channel = 0; channel < numberOfChannels; channel++) {
-                const sourceData = buffer.getChannelData(channel);
-                const targetData = mergedBuffer.getChannelData(channel);
-                targetData.set(sourceData, offset);
+                mergedBuffer.getChannelData(channel).set(channelData[channel], offset);
             }
-            offset += buffer.length;
-        });
+            offset += channelData[0].length;
+        }
 
         return mergedBuffer;
     }
@@ -98,7 +182,7 @@ export class AudioProcessor {
             for (let i = 0; i < sourceData.length; i++)
                 peak = Math.max(peak, Math.abs(sourceData[i]));
 
-            const factor = 1 / peak;
+            const factor = peak > 0 ? 1 / peak : 1;
             for (let i = 0; i < sourceData.length; i++)
                 targetData[i] = sourceData[i] * factor;
         }
@@ -107,54 +191,10 @@ export class AudioProcessor {
     }
 
     async audioBufferToWav(audioBuffer: AudioBuffer): Promise<Blob> {
-        const numberOfChannels = audioBuffer.numberOfChannels;
-        const sampleRate = audioBuffer.sampleRate;
-        const format = 1; // PCM
-        const bitDepth = 16;
-
-        const bytesPerSample = bitDepth / 8;
-        const blockAlign = numberOfChannels * bytesPerSample;
-
-        const data = new Float32Array(audioBuffer.length * numberOfChannels);
-        for (let channel = 0; channel < numberOfChannels; channel++) {
-            const channelData = audioBuffer.getChannelData(channel);
-
-            for (let i = 0; i < audioBuffer.length; i++)
-                data[i * numberOfChannels + channel] = channelData[i];
+        const channels: Float32Array[] = [];
+        for (let channel = 0; channel < audioBuffer.numberOfChannels; channel++) {
+            channels.push(audioBuffer.getChannelData(channel));
         }
-
-        const dataLength = data.length * bytesPerSample
-        const buffer = new ArrayBuffer(44 + dataLength)
-        const view = new DataView(buffer)
-
-        // Write WAV header
-        this.writeString(view, 0, 'RIFF');
-        view.setUint32(4, 36 + dataLength, true);
-        this.writeString(view, 8, 'WAVE');
-        this.writeString(view, 12, 'fmt ');
-        view.setUint32(16, 16, true); // fmt chunk size
-        view.setUint16(20, format, true);
-        view.setUint16(22, numberOfChannels, true);
-        view.setUint32(24, sampleRate, true);
-        view.setUint32(28, sampleRate * blockAlign, true);
-        view.setUint16(32, blockAlign, true);
-        view.setUint16(34, bitDepth, true);
-        this.writeString(view, 36, 'data');
-        view.setUint32(40, dataLength, true);
-
-        // Write audio data
-        let offset = 44;
-        for (let i = 0; i < data.length; i++) {
-            const sample = Math.max(-1, Math.min(1, data[i]));
-            view.setInt16(offset, sample * 0x7FFF, true);
-            offset += 2;
-        }
-
-        return new Blob([buffer], { type: 'audio/wav' })
-    }
-
-    private writeString(view: DataView, offset: number, string: string) {
-        for (let i = 0; i < string.length; i++)
-            view.setUint8(offset + i, string.charCodeAt(i));
+        return encodeWav(channels, audioBuffer.sampleRate);
     }
 }

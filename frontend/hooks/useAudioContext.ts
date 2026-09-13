@@ -1,11 +1,12 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 
 export const useAudioContext = () => {
     const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
-    const contextRef = useRef<AudioContext | null>(null);
 
     useEffect(() => {
-        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        const AudioContextClass =
+            window.AudioContext ||
+            (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
 
         if (!AudioContextClass) {
             console.warn("Web Audio API is not supported in this browser");
@@ -13,7 +14,6 @@ export const useAudioContext = () => {
         }
 
         const ctx = new AudioContextClass();
-        contextRef.current = ctx;
         setAudioContext(ctx);
 
         const resumeContext = async () => {
@@ -24,10 +24,10 @@ export const useAudioContext = () => {
         document.addEventListener('click', resumeContext, { once: true });
 
         return () => {
+            document.removeEventListener('click', resumeContext);
             ctx.close();
         };
     }, []);
 
-    return audioContext; 
+    return audioContext;
 }
-

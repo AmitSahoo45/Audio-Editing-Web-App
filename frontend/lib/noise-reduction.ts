@@ -8,8 +8,8 @@
  *   (50 / 60 Hz) and its harmonics.
  * - **Click repair** – Local-RMS thresholding to detect transient clicks,
  *   replaced by linear interpolation of neighbouring samples.
- * - **De-essing** – High-shelf + low-pass biquad filters to attenuate harsh
- *   sibilant frequencies.
+ * - **De-essing** – Static high-shelf cut + low-pass (not a detector or
+ *   dynamic de-esser). Attenuates highs constantly based on options.
  * - **Room-tone / noise gate** – RMS-based noise gate with configurable
  *   attack / release envelope that silences content below a threshold.
  */
@@ -23,9 +23,12 @@ export interface NoiseReductionOptions {
     humHarmonics?: number;
     /** Click repair: sensitivity threshold 0-1 (default 0.5) */
     clickSensitivity?: number;
-    /** De-essing: threshold in dB above which sibilance is reduced (default -20) */
+    /**
+     * Static de-ess high-shelf gain scale (default -20).
+     * Applied as min(0, deessThreshold * 0.3) dB — not a dynamic threshold.
+     */
     deessThreshold?: number;
-    /** De-essing: frequency above which sibilance is attenuated (default 4000) */
+    /** Static de-ess high-shelf / low-pass corner frequency in Hz (default 4000) */
     deessFrequency?: number;
     /** Room-tone / noise gate: gate threshold 0-1 (default 0.02) */
     gateThreshold?: number;
@@ -153,8 +156,8 @@ export class NoiseReduction {
         return out;
     }
 
-    /* ── De-essing ───────────────────────────────────────────────────── */
-    /** Reduce harsh sibilance above a frequency threshold using offline rendering. */
+    /* ── De-essing (static EQ, not a dynamic detector) ───────────────── */
+    /** Apply a fixed high-shelf cut and low-pass; no sibilance detection. */
     private async deess(
         buffer: AudioBuffer,
         opts: Required<NoiseReductionOptions>
@@ -168,15 +171,12 @@ export class NoiseReduction {
         const source = offline.createBufferSource();
         source.buffer = buffer;
 
-        // Create a high-shelf filter to attenuate high frequencies
         const highShelf = offline.createBiquadFilter();
         highShelf.type = 'highshelf';
         highShelf.frequency.value = opts.deessFrequency;
-        // Convert threshold to a gain reduction: more negative threshold = less reduction
-        const reductionDb = Math.min(0, opts.deessThreshold * 0.3);
-        highShelf.gain.value = reductionDb;
+        const shelfGainDb = Math.min(0, opts.deessThreshold * 0.3);
+        highShelf.gain.value = shelfGainDb;
 
-        // Create a gentle low-pass to further smooth the harshness
         const lowPass = offline.createBiquadFilter();
         lowPass.type = 'lowpass';
         lowPass.frequency.value = opts.deessFrequency * 3;

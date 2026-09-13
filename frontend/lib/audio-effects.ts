@@ -14,30 +14,36 @@ export class AudioEffects {
     private effectRack: EffectNode[] = [];
 
     async initialize(audioUrl: string) {
+        this.dispose();
+
         this.player = new Tone.Player(audioUrl);
         this.gain = new Tone.Gain(1);
 
-        // Default chain: EQ → Reverb (matching original behaviour)
         this.addEffect('eq');
         this.addEffect('reverb');
 
         this.rebuildChain();
         await Tone.loaded();
+
+        const reverbEntry = this.effectRack.find(e => e.type === 'reverb');
+        if (reverbEntry && reverbEntry.node instanceof Tone.Reverb) {
+            const ready = (reverbEntry.node as Tone.Reverb & { ready?: Promise<void> }).ready;
+            if (ready) await ready;
+        }
     }
 
     async play() {
         await Tone.start();
-        this.player?.start();
+        if (!this.player) return;
+        if (this.player.state === 'started') return;
+        this.player.start();
     }
 
     pause() {
         this.player?.stop();
     }
 
-    /* ── Dynamic effect rack ─────────────────────────────────────────── */
-
     addEffect(type: EffectType): void {
-        // Prevent duplicates
         if (this.effectRack.some(e => e.type === type)) return;
 
         const node = this.createEffectNode(type);
@@ -68,8 +74,6 @@ export class AudioEffects {
         return this.effectRack.map(e => ({ type: e.type, enabled: e.enabled }));
     }
 
-    /* ── Effect-specific setters ─────────────────────────────────────── */
-
     setVolume(volume: number) {
         if (this.gain) this.gain.gain.value = volume;
     }
@@ -77,7 +81,12 @@ export class AudioEffects {
     setReverb(decay: number) {
         const entry = this.effectRack.find(e => e.type === 'reverb');
         if (entry && entry.node instanceof Tone.Reverb) {
-            entry.node.decay = decay;
+            if (decay <= 0) {
+                entry.node.wet.value = 0;
+            } else {
+                entry.node.wet.value = 1;
+                entry.node.decay = Math.max(0.001, decay);
+            }
         }
     }
 
@@ -118,9 +127,9 @@ export class AudioEffects {
         this.gain?.dispose();
         this.effectRack.forEach(e => e.node.dispose());
         this.effectRack = [];
+        this.player = null;
+        this.gain = null;
     }
-
-    /* ── Internal helpers ────────────────────────────────────────────── */
 
     private createEffectNode(type: EffectType): Tone.ToneAudioNode {
         switch (type) {
@@ -139,16 +148,13 @@ export class AudioEffects {
         }
     }
 
-    /** Disconnect everything and rewire: player → [enabled effects] → gain → destination */
     private rebuildChain() {
         if (!this.player || !this.gain) return;
 
-        // Disconnect all
         this.player.disconnect();
         this.effectRack.forEach(e => e.node.disconnect());
         this.gain.disconnect();
 
-        // Build new chain
         const enabledNodes = this.effectRack.filter(e => e.enabled).map(e => e.node);
         const chain: Tone.ToneAudioNode[] = [this.player, ...enabledNodes, this.gain, Tone.Destination];
 
@@ -156,7 +162,6 @@ export class AudioEffects {
             chain[i].connect(chain[i + 1] as Tone.InputNode);
         }
 
-        // Chorus requires an explicit .start() call after connection
         for (const entry of this.effectRack) {
             if (entry.enabled && entry.node instanceof Tone.Chorus) {
                 entry.node.start();

@@ -1,8 +1,10 @@
 'use client';
 
 import { Download } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { AudioEncoder } from '@/lib/audio-encoder';
+import { renderEffects } from '@/lib/render-effects';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useAudioStore } from '@/store/audio-store';
 import { ExportPanelProps } from '@/types';
@@ -13,29 +15,43 @@ const SAMPLE_RATE_OPTIONS = [22050, 44100, 48000];
 export function ExportPanel({ audioBuffer, fileName }: ExportPanelProps) {
     const {
         isExporting, exportFormat: format, exportBitrate: bitrate, exportSampleRate: sampleRate,
+        volume, reverb, eqLow, eqMid, eqHigh,
         setIsExporting, setExportFormat: setFormat, setExportBitrate: setBitrate, setExportSampleRate: setSampleRate,
     } = useAudioStore();
 
     const handleExport = async () => {
-        if (!audioBuffer)
-            return;
+        if (!audioBuffer) return;
 
         setIsExporting(true);
 
         try {
+            const rendered = await renderEffects(audioBuffer, {
+                volume,
+                reverb,
+                eqLow,
+                eqMid,
+                eqHigh,
+            });
+
             const outputFileName = `${fileName.replace(/\.[^./\\]+$/, '')}.${format}`;
-            const options = { bitrate, sampleRate };
+            const options = {
+                bitrate,
+                ...(sampleRate != null ? { sampleRate } : {}),
+            };
 
             if (format === 'mp3')
-                await AudioEncoder.exportToMP3(audioBuffer, outputFileName, options);
+                await AudioEncoder.exportToMP3(rendered, outputFileName, options);
             else
-                await AudioEncoder.exportToWAV(audioBuffer, outputFileName, options);
+                await AudioEncoder.exportToWAV(rendered, outputFileName, options);
+
+            toast.success(`Exported as ${format.toUpperCase()}.`);
         } catch (error) {
             console.error('Export failed:', error);
+            toast.error('Export failed.');
         } finally {
             setIsExporting(false);
         }
-    }
+    };
 
     return (
         <Card>
@@ -44,7 +60,6 @@ export function ExportPanel({ audioBuffer, fileName }: ExportPanelProps) {
             </CardHeader>
 
             <div className="space-y-4">
-                {/* Format selector */}
                 <div>
                     <label className="text-xs font-medium text-text-muted">Format</label>
                     <div className="mt-2 flex gap-2">
@@ -75,7 +90,6 @@ export function ExportPanel({ audioBuffer, fileName }: ExportPanelProps) {
                     </div>
                 </div>
 
-                {/* Bitrate selector (MP3 only) */}
                 {format === 'mp3' && (
                     <div>
                         <label className="text-xs font-medium text-text-muted">Bitrate (kbps)</label>
@@ -99,10 +113,21 @@ export function ExportPanel({ audioBuffer, fileName }: ExportPanelProps) {
                     </div>
                 )}
 
-                {/* Sample-rate selector */}
                 <div>
                     <label className="text-xs font-medium text-text-muted">Sample Rate (Hz)</label>
                     <div className="mt-2 flex flex-wrap gap-1.5">
+                        <button
+                            type="button"
+                            onClick={() => setSampleRate(null)}
+                            aria-pressed={sampleRate === null}
+                            className={`px-2.5 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+                                sampleRate === null
+                                    ? 'bg-accent text-white'
+                                    : 'bg-surface-raised text-text-muted border border-border hover:bg-border/50'
+                            }`}
+                        >
+                            Original
+                        </button>
                         {SAMPLE_RATE_OPTIONS.map((sr) => (
                             <button
                                 key={sr}
@@ -132,5 +157,5 @@ export function ExportPanel({ audioBuffer, fileName }: ExportPanelProps) {
                 </Button>
             </div>
         </Card>
-    )
+    );
 }

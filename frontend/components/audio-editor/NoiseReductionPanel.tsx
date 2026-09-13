@@ -1,6 +1,7 @@
 'use client';
 
 import { Sparkles, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/Button';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useAudioStore } from '@/store/audio-store';
@@ -41,6 +42,7 @@ export default function NoiseReductionPanel({ audioBuffer, onProcessed, audioCon
             onProcessed(processed, url);
         } catch (error) {
             console.error(`Noise reduction (${mode}) failed:`, error);
+            toast.error(`Noise reduction (${mode}) failed.`);
         } finally {
             setProcessing(null);
         }

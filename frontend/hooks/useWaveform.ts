@@ -24,6 +24,8 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
     const regionsPluginRef = useRef<RegionsPlugin | null>(null);
     const optionsRef = useRef(options);
     optionsRef.current = options;
+    const zoomRef = useRef(DEFAULT_PX_PER_SEC);
+    const isPlayingRef = useRef(false);
 
     const [isReady, setIsReady] = useState<boolean>(false);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -33,10 +35,21 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
     const [zoom, setZoom] = useState<number>(DEFAULT_PX_PER_SEC);
 
     useEffect(() => {
+        zoomRef.current = zoom;
+    }, [zoom]);
+
+    useEffect(() => {
+        isPlayingRef.current = isPlaying;
+    }, [isPlaying]);
+
+    useEffect(() => {
         if (!containerRef.current || !audioUrl)
             return;
 
         const regions = RegionsPlugin.create();
+        regions.enableDragSelection({
+            color: 'rgba(59,130,246,0.15)',
+        });
         regionsPluginRef.current = regions;
 
         const wavesurfer = WaveSurfer.create({
@@ -58,6 +71,7 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
         wavesurfer.on('ready', () => {
             setIsReady(true);
             setDuration(wavesurfer.getDuration());
+            wavesurfer.zoom(zoomRef.current);
             optionsRef.current?.onReady?.();
         });
 
@@ -80,23 +94,48 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
             setCurrentTime(time);
         });
 
-
         wavesurfer.load(audioUrl);
 
-
         return () => {
+            if (isPlayingRef.current) {
+                optionsRef.current?.onPause?.();
+            }
             wavesurfer.destroy();
+            waveSurferRef.current = null;
+            regionsPluginRef.current = null;
+            setIsReady(false);
+            setIsPlaying(false);
+            setDuration(0);
+            setCurrentTime(0);
         };
 
     }, [audioUrl, containerRef]);
 
-    const play = useCallback(() => waveSurferRef.current?.play(), []);
-    const pause = useCallback(() => waveSurferRef.current?.pause(), []);
+    const play = useCallback(() => {
+        const ws = waveSurferRef.current;
+        if (!ws || !ws.getDuration()) return;
+        void ws.play();
+    }, []);
+
+    const pause = useCallback(() => {
+        const ws = waveSurferRef.current;
+        if (!ws) return;
+        ws.pause();
+    }, []);
+
     const stop = useCallback(() => {
-        waveSurferRef.current?.stop();
+        const ws = waveSurferRef.current;
+        if (!ws) return;
+        ws.stop();
         setCurrentTime(0);
     }, []);
-    const seekTo = useCallback((progress: number) => waveSurferRef.current?.seekTo(progress), []);
+
+    const seekTo = useCallback((progress: number) => {
+        const ws = waveSurferRef.current;
+        if (!ws || !Number.isFinite(progress)) return;
+        ws.seekTo(progress);
+    }, []);
+
     const addRegion = useCallback((start: number, end: number, color?: string) => {
         return regionsPluginRef.current?.addRegion({
             start,
@@ -106,7 +145,23 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
             resize: true,
         });
     }, []);
+
     const clearRegions = useCallback(() => regionsPluginRef.current?.clearRegions(), []);
+
+    const getMediaElement = useCallback((): HTMLMediaElement | null => {
+        return waveSurferRef.current?.getMediaElement() ?? null;
+    }, []);
+
+    const getTrimRange = useCallback((): { start: number; end: number } | null => {
+        const regions = regionsPluginRef.current?.getRegions() ?? [];
+        const region = regions[0];
+        if (!region || !(region.end > region.start)) return null;
+        return { start: region.start, end: region.end };
+    }, []);
+
+    const setVolume = useCallback((value: number) => {
+        waveSurferRef.current?.setVolume(Math.max(0, Math.min(1, value)));
+    }, []);
 
     const zoomIn = useCallback(() => {
         setZoom(prev => {
@@ -130,7 +185,6 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
         waveSurferRef.current?.zoom(clamped);
     }, []);
 
-    // Mouse-wheel zoom (Ctrl + scroll)
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
@@ -165,6 +219,9 @@ export const useWaveform = ({ containerRef, audioUrl, options }: UseWaveformProp
         seekTo,
         addRegion,
         clearRegions,
+        getMediaElement,
+        getTrimRange,
+        setVolume,
         zoomIn,
         zoomOut,
         zoomTo,

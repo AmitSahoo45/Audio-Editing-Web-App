@@ -21,11 +21,9 @@ function Navbar() {
             Merger
           </Link>
         </div>
-        <Link href="/editor">
-          <Button size="sm" className="rounded-full">
-            Launch App
-          </Button>
-        </Link>
+        <Button asChild size="sm" className="rounded-full">
+          <Link href="/editor">Launch App</Link>
+        </Button>
       </div>
     </nav>
   );
@@ -215,13 +213,11 @@ export default function Home() {
           </p>
 
           <div className="mt-10 flex flex-col items-center gap-4 sm:flex-row">
-            <Link href="/editor">
-              <Button size="lg" className="rounded-full px-6">
-                Start editing free
-              </Button>
-            </Link>
-            <Button variant="outline" size="lg" className="rounded-full px-6">
-              Watch demo
+            <Button asChild size="lg" className="rounded-full px-6">
+              <Link href="/editor">Start editing free</Link>
+            </Button>
+            <Button asChild variant="outline" size="lg" className="rounded-full px-6">
+              <Link href="#features">Watch demo</Link>
             </Button>
           </div>
 

@@ -7,24 +7,47 @@ import Timeline from './Timeline';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
+export interface AudioPlayerHandle {
+    play: () => void;
+    pause: () => void;
+    getTrimRange: () => { start: number; end: number } | null;
+    getMediaElement: () => HTMLMediaElement | null;
+    isReady: boolean;
+}
+
 interface AudioPlayerProps {
     audioUrl: string;
     onReady?: () => void;
     onPlaybackChange?: (isPlaying: boolean) => void;
-    playerRef?: MutableRefObject<{ play: () => void; pause: () => void } | null>;
+    onMediaReady?: (el: HTMLMediaElement | null) => void;
+    playerRef?: MutableRefObject<AudioPlayerHandle | null>;
 }
 
-export default function AudioPlayer({ audioUrl, onReady, onPlaybackChange, playerRef }: AudioPlayerProps) {
+export default function AudioPlayer({
+    audioUrl,
+    onReady,
+    onPlaybackChange,
+    onMediaReady,
+    playerRef,
+}: AudioPlayerProps) {
     const containerRef = useRef<HTMLDivElement>(null);
+    const onMediaReadyRef = useRef(onMediaReady);
+    onMediaReadyRef.current = onMediaReady;
+    const onReadyRef = useRef(onReady);
+    onReadyRef.current = onReady;
 
-    const options = useMemo(() => ({
-        onReady,
-        onPlay: () => onPlaybackChange?.(true),
-        onPause: () => onPlaybackChange?.(false),
-        onFinish: () => onPlaybackChange?.(false),
-    }), [onReady, onPlaybackChange]);
+    const options = useMemo(
+        () => ({
+            onReady: () => onReadyRef.current?.(),
+            onPlay: () => onPlaybackChange?.(true),
+            onPause: () => onPlaybackChange?.(false),
+            onFinish: () => onPlaybackChange?.(false),
+        }),
+        [onPlaybackChange]
+    );
 
     const {
+        isReady,
         isPlaying,
         currentTime,
         duration,
@@ -35,24 +58,52 @@ export default function AudioPlayer({ audioUrl, onReady, onPlaybackChange, playe
         pause,
         stop,
         seekTo,
+        getMediaElement,
+        getTrimRange,
+        setVolume,
         zoomIn,
         zoomOut,
         zoomTo,
     } = useWaveform({ containerRef, audioUrl, options });
 
-    // Expose play/pause to parent for keyboard shortcuts
+    useEffect(() => {
+        if (isReady) {
+            setVolume(1);
+            onMediaReadyRef.current?.(getMediaElement());
+        }
+    }, [isReady, getMediaElement, setVolume]);
+
     useEffect(() => {
         if (playerRef) {
-            playerRef.current = { play, pause };
+            playerRef.current = {
+                play,
+                pause,
+                getTrimRange,
+                getMediaElement,
+                isReady,
+            };
         }
-    }, [play, pause, playerRef]);
+        return () => {
+            if (playerRef) {
+                playerRef.current = null;
+            }
+        };
+    }, [play, pause, getTrimRange, getMediaElement, isReady, playerRef]);
+
+    useEffect(() => {
+        return () => {
+            onMediaReadyRef.current?.(null);
+        };
+    }, []);
 
     const handleSkipForward = () => {
+        if (duration <= 0) return;
         const newTime = Math.min(currentTime + 5, duration);
         seekTo(newTime / duration);
     };
 
     const handleSkipBackward = () => {
+        if (duration <= 0) return;
         const newTime = Math.max(currentTime - 5, 0);
         seekTo(newTime / duration);
     };
@@ -76,7 +127,6 @@ export default function AudioPlayer({ audioUrl, onReady, onPlaybackChange, playe
 
     return (
         <div className="space-y-4">
-            {/* Zoom Controls Bar */}
             <div className="flex items-center gap-3 rounded-lg border border-border bg-surface/80 px-3 py-1.5">
                 <span className="text-xs font-medium text-text-muted">Zoom</span>
                 <Button variant="ghost" size="icon" className="h-7 w-7" onClick={zoomOut} disabled={zoom <= minZoom}>
@@ -98,7 +148,6 @@ export default function AudioPlayer({ audioUrl, onReady, onPlaybackChange, playe
                 <div className="ml-auto text-[10px] text-text-dim">Ctrl +/− to zoom</div>
             </div>
 
-            {/* Waveform with horizontal scroll */}
             <div className="w-full overflow-x-auto rounded-xl bg-slate-800/50 p-4">
                 <div ref={containerRef} />
             </div>

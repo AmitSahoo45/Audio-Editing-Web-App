@@ -1,63 +1,37 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Activity } from 'lucide-react';
 
 interface FrequencyVisualizerProps {
-    audioUrl: string | null;
+    analyser: AnalyserNode | null;
+    isPlaying?: boolean;
 }
 
-/**
- * Real-time frequency-domain (FFT) visualizer powered by the Web Audio API.
- * Uses a canvas element to render a bar-graph of frequency bins.
- */
-export default function FrequencyVisualizer({ audioUrl }: FrequencyVisualizerProps) {
+export default function FrequencyVisualizer({ analyser, isPlaying = false }: FrequencyVisualizerProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const animFrameRef = useRef<number>(0);
-    const analyserRef = useRef<AnalyserNode | null>(null);
-    const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const ctxRef = useRef<AudioContext | null>(null);
-    const [isActive, setIsActive] = useState(false);
 
-    const cleanup = useCallback(() => {
-        cancelAnimationFrame(animFrameRef.current);
-        sourceRef.current?.disconnect();
-        analyserRef.current?.disconnect();
-        audioRef.current?.pause();
-        sourceRef.current = null;
-        analyserRef.current = null;
-        audioRef.current = null;
-        setIsActive(false);
-    }, []);
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx2d = canvas.getContext('2d');
+        if (!ctx2d) return;
 
-    const startVisualizer = useCallback(() => {
-        if (!audioUrl || !canvasRef.current) return;
+        const drawIdle = () => {
+            ctx2d.fillStyle = 'rgba(15, 23, 42, 0.85)';
+            ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+        };
 
-        cleanup();
-
-        const audioCtx = ctxRef.current ?? new AudioContext();
-        ctxRef.current = audioCtx;
-
-        const audio = new Audio(audioUrl);
-        audio.crossOrigin = 'anonymous';
-        audioRef.current = audio;
-
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        analyserRef.current = analyser;
-
-        const source = audioCtx.createMediaElementSource(audio);
-        sourceRef.current = source;
-        source.connect(analyser);
-        analyser.connect(audioCtx.destination);
+        if (!analyser || !isPlaying) {
+            cancelAnimationFrame(animFrameRef.current);
+            drawIdle();
+            return;
+        }
 
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-        const canvas = canvasRef.current;
-        const ctx2d = canvas.getContext('2d');
-        if (!ctx2d) return;
 
         const draw = () => {
             animFrameRef.current = requestAnimationFrame(draw);
@@ -79,23 +53,9 @@ export default function FrequencyVisualizer({ audioUrl }: FrequencyVisualizerPro
             }
         };
 
-        audio.play().then(() => {
-            setIsActive(true);
-            draw();
-        }).catch(() => {
-            // Browser blocked autoplay – clean up silently
-            cleanup();
-        });
-
-        audio.addEventListener('ended', () => {
-            cancelAnimationFrame(animFrameRef.current);
-            setIsActive(false);
-        });
-    }, [audioUrl, cleanup]);
-
-    useEffect(() => {
-        return cleanup;
-    }, [cleanup]);
+        draw();
+        return () => cancelAnimationFrame(animFrameRef.current);
+    }, [analyser, isPlaying]);
 
     return (
         <Card>
@@ -114,14 +74,9 @@ export default function FrequencyVisualizer({ audioUrl }: FrequencyVisualizerPro
                     height={80}
                     className="w-full rounded-md bg-slate-900"
                 />
-                <button
-                    type="button"
-                    onClick={isActive ? cleanup : startVisualizer}
-                    disabled={!audioUrl}
-                    className="w-full rounded-md bg-surface-raised px-3 py-1.5 text-xs font-medium text-text-muted transition-colors hover:bg-border/50 disabled:opacity-50"
-                >
-                    {isActive ? 'Stop Analyzer' : 'Start Analyzer'}
-                </button>
+                {!analyser && (
+                    <p className="text-[10px] text-text-dim text-center">Play audio to see frequencies</p>
+                )}
             </div>
         </Card>
     );
